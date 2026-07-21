@@ -1,0 +1,53 @@
+// Prisma schema for LMS Antigravity
+// Storage: SQLite (swappable to PostgreSQL/MySQL by changing provider + DATABASE_URL)
+// Run: npx prisma generate && npx prisma db push
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Subject {
+  id          String     @id
+  name        String
+  description String?
+  color       String     @default("#6366f1")
+  icon        String     @default("📚")
+  createdAt   String
+  updatedAt   String
+  ownerId     String?    // nullable now; required after auth is added
+
+  resources   Resource[]
+}
+
+model Resource {
+  id         String      @id
+  subjectId  String
+  title      String
+  type       String      // ResourceType enum values as strings
+  fileName   String      @default("")
+  filePath   String      @default("")
+  fileSize   Int         @default(0)
+  mimeType   String      @default("")
+  uploadedAt String
+  updatedAt  String
+  ownerId    String?     // nullable now; required after auth is added
+
+  subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  flashcards Flashcard[]
+}
+
+model Flashcard {
+  id             String   @id
+  deckResourceId String
+  question       String
+  answer         String
+  sortOrder      Int      @default(0)
+  createdAt      String
+
+  resource       Resource @relation(fields: [deckResourceId], references: [id], onDelete: Cascade)
+}
