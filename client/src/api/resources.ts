@@ -1,4 +1,4 @@
-import { apiGet, apiPut, apiDelete, apiUpload } from './client';
+import { apiGet, apiDelete, apiUpload } from './client';
 import type { Resource, ResourceType } from '../types';
 
 export const getResources = (subjectId: string) =>

@@ -7,6 +7,7 @@ import { attachResource } from '../middleware/attachResource';
 const router = Router();
 
 // attachResource runs before multer to pre-load subjectId into req
+router.get('/:id', resourceCtrl.getResource);
 router.put('/:id', attachResource, upload.single('file'), resourceCtrl.updateResource);
 router.delete('/:id', resourceCtrl.deleteResource);
 
