@@ -19,7 +19,7 @@ const upload = multer({
 // Fixed subjects list
 router.get('/subjects', aiCtrl.getSubjects);
 
-// Per-subject status (uploaded files + pdf ready status)
+// Per-subject status (uploaded files + docx ready status)
 router.get('/subjects/:subjectId/status', aiCtrl.getSubjectStatus);
 
 // File upload for a subject
@@ -37,10 +37,10 @@ router.post('/subjects/:subjectId/modules/:moduleNum/plan', aiCtrl.planModuleNot
 // Generate full module notes via SSE streaming
 router.post('/subjects/:subjectId/modules/:moduleNum/generate', aiCtrl.generateModuleNotes);
 
-// Download generated PDF
-router.get('/subjects/:subjectId/modules/:moduleNum/pdf', aiCtrl.downloadModulePdf);
+// Download generated DOCX
+router.get('/subjects/:subjectId/modules/:moduleNum/docx', aiCtrl.downloadModuleDocx);
 
-// Generate PDF on-demand from saved markdown (works even if SSE pdf step failed)
-router.post('/subjects/:subjectId/modules/:moduleNum/pdf', aiCtrl.regenerateModulePdf);
+// Generate DOCX on-demand from saved markdown (works even if SSE docx step failed)
+router.post('/subjects/:subjectId/modules/:moduleNum/docx', aiCtrl.regenerateModuleDocx);
 
 export default router;

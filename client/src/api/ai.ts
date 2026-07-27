@@ -19,7 +19,7 @@ export interface Subject {
 export interface SubjectStatus {
   subject: Subject;
   files: { syllabus: string[]; reference: string[] };
-  pdfStatus: Record<number, boolean>;
+  docxStatus: Record<number, boolean>;
   hasSyllabus: boolean;
   hasReference: boolean;
 }
@@ -100,7 +100,7 @@ type SSECallback = (event: {
   lectureNumber?: number;
   lectureTitle?: string;
   chunk?: string;
-  pdfUrl?: string;
+  docxUrl?: string;
   message?: string;
 }) => void;
 
@@ -164,21 +164,21 @@ export function streamModuleNotes(
   return abortCtrl;
 }
 
-/** Regenerate and download the module PDF from server-stored markdown. */
-export async function downloadModulePdf(subjectId: string, moduleNum: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/subjects/${subjectId}/modules/${moduleNum}/pdf`, {
+/** Regenerate and download the module DOCX from server-stored markdown. */
+export async function downloadModuleDocx(subjectId: string, moduleNum: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/subjects/${subjectId}/modules/${moduleNum}/docx`, {
     method: 'POST',
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'PDF download failed' }));
-    throw new Error(err.error || 'PDF download failed');
+    const err = await res.json().catch(() => ({ error: 'DOCX download failed' }));
+    throw new Error(err.error || 'DOCX download failed');
   }
 
   const blob = await res.blob();
   const disposition = res.headers.get('Content-Disposition') ?? '';
   const match = disposition.match(/filename="([^"]+)"/);
-  const fileName = match?.[1] ?? `Module_${moduleNum}_Notes.pdf`;
+  const fileName = match?.[1] ?? `Module_${moduleNum}_Notes.docx`;
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');

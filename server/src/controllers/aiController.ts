@@ -4,13 +4,13 @@
  * All AI Notes Generator API endpoints.
  *
  * GET  /ai/subjects                                    — list 6 fixed subjects
- * GET  /ai/subjects/:subjectId/status                  — upload status + pdf status
+ * GET  /ai/subjects/:subjectId/status                  — upload status + docx status
  * POST /ai/subjects/:subjectId/upload                  — upload syllabus or reference book
  * DELETE /ai/subjects/:subjectId/files/:docType/:name  — delete a file
  * POST /ai/subjects/:subjectId/modules/:moduleNum/plan — plan lectures for a module
  * POST /ai/subjects/:subjectId/modules/:moduleNum/generate — SSE: stream module notes
- * GET  /ai/subjects/:subjectId/modules/:moduleNum/pdf  — download generated PDF
- * POST /ai/subjects/:subjectId/modules/:moduleNum/pdf  — generate PDF from saved markdown
+ * GET  /ai/subjects/:subjectId/modules/:moduleNum/docx  — download generated DOCX
+ * POST /ai/subjects/:subjectId/modules/:moduleNum/docx  — generate DOCX from saved markdown
  */
 
 import fs from 'fs';
@@ -28,11 +28,11 @@ import {
 import { planModule, generateLecture } from '../services/llmService';
 import type { ContextChunk } from '../services/llmService';
 import {
-  generateModulePdf,
-  getPdfStatus,
-  getPdfPathIfExists,
-  deletePdf,
-} from '../services/pdfGenerator';
+  generateModuleDocx,
+  getDocxStatus,
+  getDocxPathIfExists,
+  deleteDocx,
+} from '../services/wordGenerator';
 import path from 'path';
 import type { DocumentType } from '../services/datasetIndexer';
 
@@ -102,13 +102,13 @@ export const getSubjectStatus = asyncHandler(async (req: Request, res: Response)
   }
 
   const files = getUploadedFiles(subjectId);
-  const pdfStatus = getPdfStatus(subjectId);
+  const docxStatus = getDocxStatus(subjectId);
 
   res.json({
     data: {
       subject,
       files,
-      pdfStatus,
+      docxStatus,
       hasSyllabus: files.syllabus.length > 0,
       hasReference: files.reference.length > 0,
     },
@@ -210,7 +210,7 @@ export const planModuleNotes = asyncHandler(async (req: Request, res: Response) 
  *   { type: 'lecture_start', lectureNumber, lectureTitle }
  *   { type: 'chunk', chunk: string }
  *   { type: 'lecture_done', lectureNumber }
- *   { type: 'pdf_ready', pdfUrl }
+ *   { type: 'docx_ready', docxUrl }
  *   { type: 'done' }
  *   { type: 'error', message }
  */
@@ -229,8 +229,8 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  // Delete existing PDF so it regenerates fresh
-  deletePdf(subjectId, moduleNumber);
+  // Delete existing DOCX so it regenerates fresh
+  deleteDocx(subjectId, moduleNumber);
 
   // SSE setup
   res.setHeader('Content-Type', 'text/event-stream');
@@ -278,30 +278,30 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
       send({ type: 'lecture_done', lectureNumber: lecture.lectureNumber });
     }
 
-    // Generate PDF (skip if notes body never arrived)
-    send({ type: 'pdf_generating' });
+    // Generate DOCX (skip if notes body never arrived)
+    send({ type: 'docx_generating' });
     try {
       if (fullMarkdown.trim().length < 80) {
-        throw new Error('Notes content too short — PDF was not generated');
+        throw new Error('Notes content too short — DOCX was not generated');
       }
 
-      const pdfPath = await generateModulePdf(
+      const docxPath = await generateModuleDocx(
         subjectId,
         subject.name,
         moduleNumber,
         plan.moduleTitle,
         fullMarkdown
       );
-      console.log(`[aiController] PDF generated: ${pdfPath}`);
+      console.log(`[aiController] DOCX generated: ${docxPath}`);
       send({
-        type: 'pdf_ready',
-        pdfUrl: `/api/v1/ai/subjects/${subjectId}/modules/${moduleNumber}/pdf`,
+        type: 'docx_ready',
+        docxUrl: `/api/v1/ai/subjects/${subjectId}/modules/${moduleNumber}/docx`,
       });
-    } catch (pdfErr: unknown) {
-      const pdfMsg = pdfErr instanceof Error ? pdfErr.message : 'PDF generation failed';
-      console.error('[aiController] PDF error (content saved to disk):', pdfMsg);
-      // Don't fail the whole generation — markdown is saved, user can retry PDF
-      send({ type: 'pdf_error', message: 'PDF generation failed — use the Download button to retry.' });
+    } catch (docxErr: unknown) {
+      const docxMsg = docxErr instanceof Error ? docxErr.message : 'DOCX generation failed';
+      console.error('[aiController] DOCX error (content saved to disk):', docxMsg);
+      // Don't fail the whole generation — markdown is saved, user can retry DOCX
+      send({ type: 'docx_error', message: 'DOCX generation failed — use the Download button to retry.' });
     }
 
     send({ type: 'done' });
@@ -314,9 +314,9 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
   }
 });
 
-// ── GET /ai/subjects/:subjectId/modules/:moduleNum/pdf ────────────────────────
+// ── GET /ai/subjects/:subjectId/modules/:moduleNum/docx ────────────────────────
 
-export const downloadModulePdf = asyncHandler(async (req: Request, res: Response) => {
+export const downloadModuleDocx = asyncHandler(async (req: Request, res: Response) => {
   const { subjectId, moduleNum } = req.params;
   const moduleNumber = parseInt(moduleNum, 10);
 
@@ -326,22 +326,22 @@ export const downloadModulePdf = asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  const pdfPath = getPdfPathIfExists(subjectId, moduleNumber);
-  if (!pdfPath) {
-    res.status(404).json({ error: 'PDF not yet generated for this module. Use POST to generate it.' });
+  const docxPath = getDocxPathIfExists(subjectId, moduleNumber);
+  if (!docxPath) {
+    res.status(404).json({ error: 'DOCX not yet generated for this module. Use POST to generate it.' });
     return;
   }
 
-  const fileName = `${subject.short}_Module_${moduleNumber}.pdf`;
-  res.setHeader('Content-Type', 'application/pdf');
+  const fileName = `${subject.short}_Module_${moduleNumber}.docx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-  fs.createReadStream(pdfPath).pipe(res);
+  fs.createReadStream(docxPath).pipe(res);
 });
 
-// ── POST /ai/subjects/:subjectId/modules/:moduleNum/pdf ───────────────────────
-// Generate PDF on-demand from the saved markdown file (safe to call anytime)
+// ── POST /ai/subjects/:subjectId/modules/:moduleNum/docx ───────────────────────
+// Generate DOCX on-demand from the saved markdown file (safe to call anytime)
 
-export const regenerateModulePdf = asyncHandler(async (req: Request, res: Response) => {
+export const regenerateModuleDocx = asyncHandler(async (req: Request, res: Response) => {
   const { subjectId, moduleNum } = req.params;
   const moduleNumber = parseInt(moduleNum, 10);
 
@@ -358,22 +358,22 @@ export const regenerateModulePdf = asyncHandler(async (req: Request, res: Respon
   }
 
   try {
-    const pdfPath = await generateModulePdf(
+    const docxPath = await generateModuleDocx(
       subjectId,
       subject.name,
       moduleNumber,
       `Module ${moduleNumber}`,
       markdown
     );
-    console.log(`[aiController] PDF regenerated: ${pdfPath}`);
+    console.log(`[aiController] DOCX regenerated: ${docxPath}`);
 
     // Stream back directly
-    const fileName = `${subject.short}_Module_${moduleNumber}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
+    const fileName = `${subject.short}_Module_${moduleNumber}.docx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    fs.createReadStream(pdfPath).pipe(res);
+    fs.createReadStream(docxPath).pipe(res);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'PDF generation failed';
+    const message = err instanceof Error ? err.message : 'DOCX generation failed';
     res.status(500).json({ error: message });
   }
 });

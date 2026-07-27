@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSubjectStatus, planModuleNotes, streamModuleNotes, downloadModulePdf } from '../api/ai';
+import { getSubjectStatus, planModuleNotes, streamModuleNotes, downloadModuleDocx } from '../api/ai';
 import type { ModulePlan, SubjectStatus } from '../api/ai';
 import { PageLoader } from '../components/LoadingSpinner';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -17,7 +17,7 @@ export default function ModuleNotes() {
   const [planning, setPlanning] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generationDone, setGenerationDone] = useState(false);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingDocx, setDownloadingDocx] = useState(false);
   
   // Streaming state
   const [currentLecture, setCurrentLecture] = useState<{ num: number; title: string } | null>(null);
@@ -74,8 +74,8 @@ export default function ModuleNotes() {
       moduleNumber,
       plan,
       (event) => {
-        if (event.type === 'pdf_ready') {
-          // Server PDF is ready on disk — Download button uses POST /pdf
+        if (event.type === 'docx_ready') {
+          // Server DOCX is ready on disk — Download button uses POST /docx
         } else if (event.type === 'lecture_start') {
           setCurrentLecture({ num: event.lectureNumber!, title: event.lectureTitle! });
           setLiveChunk('');
@@ -108,131 +108,19 @@ export default function ModuleNotes() {
     setGenerationDone(completedLectures.length > 0);
   };
 
-  const exportPdfViaBrowserPrint = async () => {
-    if (completedLectures.length === 0) return;
-
-    const subject = status?.subject;
-    const moduleTitle = plan?.moduleTitle ?? `Module ${moduleNumber}`;
-    const fullMarkdown = completedLectures.join('\n\n---\n\n');
-
-    const parsedBlocks = fullMarkdown
-      .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-      .replace(/^---$/gm, '<hr>')
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-
-    const htmlBody = parsedBlocks
-      .split('\n\n')
-      .map(block => {
-        const trimmed = block.trim();
-        if (!trimmed) return '';
-        if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<hr') || trimmed.startsWith('<block')) {
-          return trimmed;
-        }
-        return `<p>${trimmed}</p>`;
-      })
-      .join('\n');
-
-    const printHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${subject?.name ?? ''} — ${moduleTitle}</title>
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.7; color: #111; margin: 0; padding: 0; }
-    h1 { font-size: 20pt; font-weight: 900; color: #1e1b4b; border-bottom: 3px solid #6366f1; padding-bottom: 8px; margin: 28px 0 16px; }
-    h2 { font-size: 15pt; font-weight: 700; color: #3730a3; border-left: 4px solid #6366f1; padding-left: 10px; margin: 22px 0 12px; }
-    h3 { font-size: 13pt; font-weight: 600; color: #1e1b4b; margin: 18px 0 8px; }
-    h4 { font-size: 11pt; font-weight: 600; color: #4338ca; margin: 14px 0 6px; }
-    p { margin: 10px 0; }
-    ul, ol { margin: 8px 0 12px 20px; }
-    li { margin-bottom: 4px; }
-    code { font-family: Consolas, monospace; font-size: 9.5pt; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 3px; padding: 1px 4px; }
-    pre { background: #1e1b4b; color: #e2e8f0; border-radius: 6px; padding: 14px 18px; margin: 12px 0; font-size: 9.5pt; white-space: pre-wrap; }
-    pre code { background: none; border: none; color: inherit; padding: 0; }
-    blockquote { border-left: 4px solid #6366f1; background: #f0f0ff; padding: 8px 14px; margin: 12px 0; border-radius: 0 6px 6px 0; }
-    table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 10pt; }
-    th { background: #4338ca; color: white; font-weight: 600; padding: 9px 11px; text-align: left; }
-    td { padding: 8px 11px; border: 1px solid #e2e8f0; }
-    tr:nth-child(even) td { background: #f8fafc; }
-    strong { font-weight: 700; }
-    hr { border: none; border-top: 2px solid #e2e8f0; margin: 20px 0; }
-    .cover { text-align: center; padding: 60px 40px; page-break-after: always; background: linear-gradient(135deg, #6366f1, #7c3aed); color: white; }
-    .cover h1 { color: white; border-color: rgba(255,255,255,0.4); font-size: 26pt; }
-    .cover p { font-size: 13pt; opacity: 0.85; }
-    .notes-content {
-      display: block !important;
-      visibility: visible !important;
-      height: auto !important;
-      overflow: visible !important;
-      padding: 40px 50px;
-      color: #111 !important;
-    }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .notes-content, .notes-content * {
-        visibility: visible !important;
-        display: revert !important;
-        height: auto !important;
-        overflow: visible !important;
-      }
-      h1, h2, h3, h4 { page-break-after: avoid; }
-      pre, table, blockquote { page-break-inside: avoid; }
-    }
-  </style>
-</head>
-<body>
-  <div class="cover">
-    <h1>📚 Module ${moduleNumber}</h1>
-    <p><strong>${subject?.name ?? ''}</strong></p>
-    <p>${moduleTitle}</p>
-    <p style="margin-top:24px; font-size:10pt; opacity:0.7;">TCET AI University Notes Generator</p>
-  </div>
-  <div class="notes-content">
-    ${htmlBody}
-  </div>
-</body>
-</html>`;
-
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) {
-      throw new Error('Popup blocked! Please allow popups for this site and try again.');
-    }
-
-    win.document.open();
-    win.document.write(printHtml);
-    win.document.close();
-
-    await waitForPrintWindowReady(win, '.notes-content');
-    win.focus();
-    win.print();
-  };
-
-  // Download PDF — server Puppeteer first, browser print fallback
-  const handleDownloadPdf = async () => {
+  // Download DOCX
+  const handleDownloadDocx = async () => {
     if (!subjectId || completedLectures.length === 0) return;
 
     setError('');
-    setDownloadingPdf(true);
+    setDownloadingDocx(true);
     try {
-      await downloadModulePdf(subjectId, moduleNumber);
-    } catch {
-      try {
-        await exportPdfViaBrowserPrint();
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'PDF export failed';
-        setError(message);
-      }
+      await downloadModuleDocx(subjectId, moduleNumber);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'DOCX export failed';
+      setError(message);
     } finally {
-      setDownloadingPdf(false);
+      setDownloadingDocx(false);
     }
   };
 
@@ -260,11 +148,11 @@ export default function ModuleNotes() {
         {/* Download button — visible after generation is complete */}
         {generationDone && !generating && (
           <button
-            onClick={handleDownloadPdf}
-            disabled={downloadingPdf}
+            onClick={handleDownloadDocx}
+            disabled={downloadingDocx}
             className="btn btn-primary gap-2 shadow-md"
           >
-            {downloadingPdf ? 'Preparing PDF…' : '⬇️ Download PDF'}
+            {downloadingDocx ? 'Preparing Word Doc…' : '⬇️ Download Word Doc'}
           </button>
         )}
       </div>

@@ -57,7 +57,7 @@ export default function SubjectWorkspace() {
   };
 
   if (loading || !status) return <PageLoader />;
-  const { subject, files, pdfStatus, hasSyllabus } = status;
+  const { subject, files, docxStatus, hasSyllabus } = status;
 
   return (
     <div className="animate-fadeIn max-w-6xl mx-auto space-y-8 pb-12">
@@ -95,11 +95,11 @@ export default function SubjectWorkspace() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {Array.from({ length: subject.totalModules }).map((_, i) => {
               const num = i + 1;
-              const hasPdf = pdfStatus[num];
+              const hasDocx = docxStatus[num];
 
               return (
                 <div key={num} className={`card p-5 border-l-4 transition-all ${
-                  hasPdf ? 'border-l-emerald-500 bg-emerald-50/30' : 'border-l-slate-200'
+                  hasDocx ? 'border-l-emerald-500 bg-emerald-50/30' : 'border-l-slate-200'
                 }`}>
                   <div className="flex justify-between items-start mb-4">
                     <div>
@@ -107,23 +107,23 @@ export default function SubjectWorkspace() {
                         Module {num}
                       </div>
                       <h3 className="font-bold text-slate-800">
-                        {hasPdf ? 'Generated Notes' : 'Pending Generation'}
+                        {hasDocx ? 'Generated Notes' : 'Pending Generation'}
                       </h3>
                     </div>
-                    {hasPdf && (
+                    {hasDocx && (
                       <span className="text-xl" title="Ready">✅</span>
                     )}
                   </div>
 
                   <div className="flex gap-2">
-                    {hasPdf ? (
+                    {hasDocx ? (
                       <a
-                        href={`/api/v1/ai/subjects/${subject.id}/modules/${num}/pdf`}
+                        href={`/api/v1/ai/subjects/${subject.id}/modules/${num}/docx`}
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-primary flex-1 gap-2 text-sm"
                       >
-                        ⬇️ Download PDF
+                        ⬇️ Download Word Doc
                       </a>
                     ) : (
                       <Link
@@ -134,7 +134,7 @@ export default function SubjectWorkspace() {
                         ✨ Generate Notes
                       </Link>
                     )}
-                    {hasPdf && (
+                    {hasDocx && (
                       <Link
                         to={`/subjects/${subject.id}/module/${num}`}
                         className="btn bg-slate-100 hover:bg-slate-200 text-slate-600 px-3"
