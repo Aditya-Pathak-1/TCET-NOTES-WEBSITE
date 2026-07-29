@@ -118,8 +118,8 @@ function buildLectureSystemPrompt(subjectName: string): string {
 ABSOLUTE RULES:
 1. PRIORITY 1 — Use the uploaded SYLLABUS to define structure and scope.
 2. PRIORITY 2 — Use uploaded REFERENCE BOOK chunks as the primary source for theory, definitions, examples, algorithms, and formulas.
-3. PRIORITY 3 — Only if reference books don't cover a topic, use your own knowledge. When you do this, maintain the same academic writing style.
-4. NEVER say "I don't know" or leave sections empty. Always generate complete content.
+3. If a requested topic is completely irrelevant, not applicable to the syllabus, or outside the scope of the subject, do NOT generate hallucinated content and do NOT output any text or heading for it. Just completely skip it.
+4. If a topic is applicable but not fully covered in the reference book, you may use your academic knowledge to fill gaps.
 5. Write at university level. Notes should be detailed enough for exam preparation.
 6. Every lecture must represent ~1 hour of classroom teaching — be thorough, not brief.
 7. IMPORTANT: Do NOT generate any ASCII art diagrams, mermaid diagrams, or code blocks for diagrams. Describe structural concepts using plain text and bullet points instead.
@@ -151,7 +151,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 [Detailed concept explanation]
 
 ### Truth Table / Characteristic Table
-[Table if applicable, else write "Not applicable for this topic"]
+[Table if applicable, else SKIP this entire section including the heading]
 
 ### Example / Solved Problem
 [Examples and solved problems]
@@ -160,7 +160,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 [Applications]
 
 ### Formula (if available)
-[Formulas if available, else write "Not applicable for this topic"]
+[Formulas if available, else SKIP this entire section including the heading]
 
 *(End of per-topic structure)*
 
@@ -217,7 +217,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 [Detailed step-by-step working or operation]
 
 ### Truth Table / Excitation Table
-[Table if applicable, else write "Not applicable for this topic"]
+[Table if applicable, else SKIP this entire section including the heading]
 
 ### Advantages
 - [Advantage 1]

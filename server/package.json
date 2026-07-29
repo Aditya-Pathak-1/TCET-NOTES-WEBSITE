@@ -27,6 +27,7 @@
     "multer": "^1.4.5-lts.1",
     "openai": "^6.49.0",
     "pdf-parse": "^1.1.1",
+    "pptxgenjs": "^4.0.1",
     "puppeteer": "^25.3.0",
     "uuid": "^9.0.1",
     "vectra": "^0.15.0"

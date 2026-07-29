@@ -20,6 +20,7 @@ export interface SubjectStatus {
   subject: Subject;
   files: { syllabus: string[]; reference: string[] };
   docxStatus: Record<number, boolean>;
+  pptxStatus: Record<number, boolean>;
   hasSyllabus: boolean;
   hasReference: boolean;
 }
@@ -101,6 +102,7 @@ type SSECallback = (event: {
   lectureTitle?: string;
   chunk?: string;
   docxUrl?: string;
+  pptxUrl?: string;
   message?: string;
 }) => void;
 
@@ -179,6 +181,54 @@ export async function downloadModuleDocx(subjectId: string, moduleNum: number): 
   const disposition = res.headers.get('Content-Disposition') ?? '';
   const match = disposition.match(/filename="([^"]+)"/);
   const fileName = match?.[1] ?? `Module_${moduleNum}_Notes.docx`;
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Download the module PPTX directly via API without regenerating. */
+export async function downloadModulePptx(subjectId: string, moduleNum: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/subjects/${subjectId}/modules/${moduleNum}/pptx`, {
+    method: 'GET',
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'PPTX download failed' }));
+    throw new Error(err.error || 'PPTX download failed');
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const fileName = match?.[1] ?? `Module_${moduleNum}_Presentation.pptx`;
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Regenerate and download the module PPTX from server-stored markdown. */
+export async function regenerateModulePptx(subjectId: string, moduleNum: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/subjects/${subjectId}/modules/${moduleNum}/pptx`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'PPTX regeneration failed' }));
+    throw new Error(err.error || 'PPTX regeneration failed');
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const fileName = match?.[1] ?? `Module_${moduleNum}_Presentation.pptx`;
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');

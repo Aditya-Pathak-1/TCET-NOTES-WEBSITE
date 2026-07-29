@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSubjectStatus, uploadSubjectFile, deleteSubjectFile } from '../api/ai';
+import { getSubjectStatus, uploadSubjectFile, deleteSubjectFile, regenerateModulePptx } from '../api/ai';
 import type { SubjectStatus } from '../api/ai';
 import { PageLoader } from '../components/LoadingSpinner';
 
@@ -11,6 +11,20 @@ export default function SubjectWorkspace() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadType, setActiveUploadType] = useState<'syllabus' | 'reference'>('syllabus');
+  const [regeneratingPpt, setRegeneratingPpt] = useState<Record<number, boolean>>({});
+
+  const handleRegeneratePpt = async (moduleNum: number) => {
+    if (!subjectId) return;
+    setRegeneratingPpt(prev => ({ ...prev, [moduleNum]: true }));
+    try {
+      await regenerateModulePptx(subjectId, moduleNum);
+      fetchStatus();
+    } catch (err: any) {
+      alert(err.message || 'Failed to regenerate PPT');
+    } finally {
+      setRegeneratingPpt(prev => ({ ...prev, [moduleNum]: false }));
+    }
+  };
 
   const fetchStatus = useCallback(() => {
     if (!subjectId) return;
@@ -57,7 +71,7 @@ export default function SubjectWorkspace() {
   };
 
   if (loading || !status) return <PageLoader />;
-  const { subject, files, docxStatus, hasSyllabus } = status;
+  const { subject, files, docxStatus, pptxStatus, hasSyllabus } = status;
 
   return (
     <div className="animate-fadeIn max-w-6xl mx-auto space-y-8 pb-12">
@@ -96,6 +110,7 @@ export default function SubjectWorkspace() {
             {Array.from({ length: subject.totalModules }).map((_, i) => {
               const num = i + 1;
               const hasDocx = docxStatus[num];
+              const hasPptx = pptxStatus?.[num];
 
               return (
                 <div key={num} className={`card p-5 border-l-4 transition-all ${
@@ -115,34 +130,65 @@ export default function SubjectWorkspace() {
                     )}
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
                     {hasDocx ? (
-                      <a
-                        href={`/api/v1/ai/subjects/${subject.id}/modules/${num}/docx`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-primary flex-1 gap-2 text-sm"
-                      >
-                        ⬇️ Download Word Doc
-                      </a>
+                      <div className="flex gap-2">
+                        <a
+                          href={`/api/v1/ai/subjects/${subject.id}/modules/${num}/docx`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-primary flex-1 text-sm justify-center"
+                        >
+                          ⬇️ Word Doc
+                        </a>
+                        <Link
+                          to={`/subjects/${subject.id}/module/${num}`}
+                          className="btn bg-slate-100 hover:bg-slate-200 text-slate-600 flex-1 text-sm justify-center"
+                          title="Regenerate Notes & PPT"
+                        >
+                          🔄 Regenerate All
+                        </Link>
+                      </div>
                     ) : (
                       <Link
                         to={`/subjects/${subject.id}/module/${num}`}
-                        className={`btn flex-1 text-sm ${hasSyllabus ? 'btn-primary' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                        className={`btn flex-1 text-sm justify-center ${hasSyllabus ? 'btn-primary' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
                         onClick={e => !hasSyllabus && e.preventDefault()}
                       >
                         ✨ Generate Notes
                       </Link>
                     )}
-                    {hasDocx && (
-                      <Link
-                        to={`/subjects/${subject.id}/module/${num}`}
-                        className="btn bg-slate-100 hover:bg-slate-200 text-slate-600 px-3"
-                        title="Regenerate"
+
+                    {hasPptx ? (
+                      <div className="flex gap-2">
+                        <a
+                          href={`/api/v1/ai/subjects/${subject.id}/modules/${num}/pptx`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn bg-orange-100 text-orange-700 hover:bg-orange-200 flex-1 text-sm justify-center"
+                          title="Download Presentation"
+                        >
+                          ⬇️ PPT
+                        </a>
+                        <button
+                          onClick={() => handleRegeneratePpt(num)}
+                          disabled={regeneratingPpt[num]}
+                          className="btn bg-slate-100 hover:bg-slate-200 text-slate-600 flex-1 text-sm justify-center"
+                          title="Regenerate only the Presentation using existing Notes"
+                        >
+                          {regeneratingPpt[num] ? '🔄 Generating...' : '🔄 Regenerate PPT'}
+                        </button>
+                      </div>
+                    ) : hasDocx ? (
+                      <button
+                        onClick={() => handleRegeneratePpt(num)}
+                        disabled={regeneratingPpt[num]}
+                        className="btn bg-orange-100 text-orange-700 hover:bg-orange-200 w-full text-sm justify-center"
+                        title="Generate Presentation from existing Notes"
                       >
-                        🔄
-                      </Link>
-                    )}
+                        {regeneratingPpt[num] ? '🔄 Generating PPT (takes ~1 min)...' : '✨ Generate PPT'}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               );

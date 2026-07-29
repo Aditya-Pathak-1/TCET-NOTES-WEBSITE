@@ -33,6 +33,12 @@ import {
   getDocxPathIfExists,
   deleteDocx,
 } from '../services/wordGenerator';
+import {
+  generateModulePptx,
+  getPptxStatus,
+  getPptxPathIfExists,
+  deletePptx,
+} from '../services/pptGenerator';
 import path from 'path';
 import type { DocumentType } from '../services/datasetIndexer';
 
@@ -103,12 +109,14 @@ export const getSubjectStatus = asyncHandler(async (req: Request, res: Response)
 
   const files = getUploadedFiles(subjectId);
   const docxStatus = getDocxStatus(subjectId);
+  const pptxStatus = getPptxStatus(subjectId);
 
   res.json({
     data: {
       subject,
       files,
       docxStatus,
+      pptxStatus,
       hasSyllabus: files.syllabus.length > 0,
       hasReference: files.reference.length > 0,
     },
@@ -229,8 +237,9 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  // Delete existing DOCX so it regenerates fresh
+  // Delete existing DOCX and PPTX so they regenerate fresh
   deleteDocx(subjectId, moduleNumber);
+  deletePptx(subjectId, moduleNumber);
 
   // SSE setup
   res.setHeader('Content-Type', 'text/event-stream');
@@ -303,6 +312,8 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
       // Don't fail the whole generation — markdown is saved, user can retry DOCX
       send({ type: 'docx_error', message: 'DOCX generation failed — use the Download button to retry.' });
     }
+
+
 
     send({ type: 'done' });
     res.end();
@@ -378,7 +389,66 @@ export const regenerateModuleDocx = asyncHandler(async (req: Request, res: Respo
   }
 });
 
-// ── POST /ai/subjects/:subjectId/index ────────────────────────────────────────
+// ── GET /ai/subjects/:subjectId/modules/:moduleNum/pptx ────────────────────────
+
+export const downloadModulePptx = asyncHandler(async (req: Request, res: Response) => {
+  const { subjectId, moduleNum } = req.params;
+  const moduleNumber = parseInt(moduleNum, 10);
+
+  const subject = getSubjectById(subjectId);
+  if (!subject) {
+    res.status(404).json({ error: 'Subject not found' });
+    return;
+  }
+
+  const pptxPath = getPptxPathIfExists(subjectId, moduleNumber);
+  if (!pptxPath) {
+    res.status(404).json({ error: 'PPTX not yet generated for this module.' });
+    return;
+  }
+
+  const fileName = `${subject.short}_Module_${moduleNumber}.pptx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  fs.createReadStream(pptxPath).pipe(res);
+});
+
+// ── POST /ai/subjects/:subjectId/modules/:moduleNum/pptx ───────────────────────
+
+export const regenerateModulePptx = asyncHandler(async (req: Request, res: Response) => {
+  const { subjectId, moduleNum } = req.params;
+  const moduleNumber = parseInt(moduleNum, 10);
+
+  const subject = getSubjectById(subjectId);
+  if (!subject) {
+    res.status(404).json({ error: 'Subject not found' });
+    return;
+  }
+
+  const markdown = loadMarkdownFromDisk(subjectId, moduleNumber);
+  if (!markdown) {
+    res.status(404).json({ error: 'No generated content found for this module.' });
+    return;
+  }
+
+  try {
+    const pptxPath = await generateModulePptx(
+      subjectId,
+      subject.name,
+      moduleNumber,
+      `Module ${moduleNumber}`,
+      markdown
+    );
+    
+    const fileName = `${subject.short}_Module_${moduleNumber}.pptx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    fs.createReadStream(pptxPath).pipe(res);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'PPTX generation failed';
+    res.status(500).json({ error: message });
+  }
+});
 // Re-index all files for a subject (useful after restart)
 
 export const reindexSubject = asyncHandler(async (req: Request, res: Response) => {

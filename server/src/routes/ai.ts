@@ -43,4 +43,10 @@ router.get('/subjects/:subjectId/modules/:moduleNum/docx', aiCtrl.downloadModule
 // Generate DOCX on-demand from saved markdown (works even if SSE docx step failed)
 router.post('/subjects/:subjectId/modules/:moduleNum/docx', aiCtrl.regenerateModuleDocx);
 
+// Download generated PPTX
+router.get('/subjects/:subjectId/modules/:moduleNum/pptx', aiCtrl.downloadModulePptx);
+
+// Generate PPTX on-demand from saved markdown
+router.post('/subjects/:subjectId/modules/:moduleNum/pptx', aiCtrl.regenerateModulePptx);
+
 export default router;

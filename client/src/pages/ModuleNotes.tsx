@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSubjectStatus, planModuleNotes, streamModuleNotes, downloadModuleDocx } from '../api/ai';
+import { getSubjectStatus, planModuleNotes, streamModuleNotes, downloadModuleDocx, downloadModulePptx } from '../api/ai';
 import type { ModulePlan, SubjectStatus } from '../api/ai';
 import { PageLoader } from '../components/LoadingSpinner';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -18,6 +18,8 @@ export default function ModuleNotes() {
   const [generating, setGenerating] = useState(false);
   const [generationDone, setGenerationDone] = useState(false);
   const [downloadingDocx, setDownloadingDocx] = useState(false);
+  const [downloadingPptx, setDownloadingPptx] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState('');
   
   // Streaming state
   const [currentLecture, setCurrentLecture] = useState<{ num: number; title: string } | null>(null);
@@ -74,9 +76,12 @@ export default function ModuleNotes() {
       moduleNumber,
       plan,
       (event) => {
-        if (event.type === 'docx_ready') {
-          // Server DOCX is ready on disk — Download button uses POST /docx
+        if (event.type === 'docx_generating') {
+          setGenerationStatus('Generating Word Document...');
+        } else if (event.type === 'docx_ready') {
+          // Server DOCX is ready on disk
         } else if (event.type === 'lecture_start') {
+          setGenerationStatus('Generating Notes...');
           setCurrentLecture({ num: event.lectureNumber!, title: event.lectureTitle! });
           setLiveChunk('');
           liveChunkRef.current = '';
@@ -124,6 +129,39 @@ export default function ModuleNotes() {
     }
   };
 
+  const handleDownloadPptx = async () => {
+    if (!subjectId || completedLectures.length === 0) return;
+
+    setError('');
+    setDownloadingPptx(true);
+    try {
+      await downloadModulePptx(subjectId, moduleNumber);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'PPTX export failed';
+      setError(message);
+    } finally {
+      setDownloadingPptx(false);
+    }
+  };
+
+  const handleGeneratePptx = async () => {
+    if (!subjectId || completedLectures.length === 0) return;
+
+    setError('');
+    setDownloadingPptx(true); // Reuse the same loading state
+    try {
+      const { regenerateModulePptx } = await import('../api/ai');
+      await regenerateModulePptx(subjectId, moduleNumber);
+      const updated = await getSubjectStatus(subjectId);
+      setStatus(updated);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'PPTX generation failed';
+      setError(message);
+    } finally {
+      setDownloadingPptx(false);
+    }
+  };
+
   if (!status) return <PageLoader />;
 
   return (
@@ -145,15 +183,34 @@ export default function ModuleNotes() {
           <h1 className="text-3xl font-black text-slate-900">Module {moduleNumber} Notes</h1>
           <p className="text-slate-500 mt-1">Generate complete lecture-wise notes from the syllabus.</p>
         </div>
-        {/* Download button — visible after generation is complete */}
+        {/* Download buttons — visible after generation is complete */}
         {generationDone && !generating && (
-          <button
-            onClick={handleDownloadDocx}
-            disabled={downloadingDocx}
-            className="btn btn-primary gap-2 shadow-md"
-          >
-            {downloadingDocx ? 'Preparing Word Doc…' : '⬇️ Download Word Doc'}
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleDownloadDocx}
+              disabled={downloadingDocx}
+              className="btn btn-primary gap-2 shadow-md w-full"
+            >
+              {downloadingDocx ? 'Preparing Word Doc…' : '⬇️ Download Word Doc'}
+            </button>
+            {status?.pptxStatus?.[moduleNumber] ? (
+              <button
+                onClick={handleDownloadPptx}
+                disabled={downloadingPptx}
+                className="btn bg-orange-100 text-orange-700 hover:bg-orange-200 gap-2 shadow-md w-full"
+              >
+                {downloadingPptx ? 'Downloading PPT…' : '⬇️ Download PPT'}
+              </button>
+            ) : (
+              <button
+                onClick={handleGeneratePptx}
+                disabled={downloadingPptx}
+                className="btn bg-orange-100 text-orange-700 hover:bg-orange-200 gap-2 shadow-md w-full"
+              >
+                {downloadingPptx ? 'Generating PPT (takes ~1 min)…' : '✨ Generate PPT'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -229,7 +286,7 @@ export default function ModuleNotes() {
           <div className="card p-5 sticky top-4 z-10 shadow-lg border-indigo-100 flex justify-between items-center bg-white/90 backdrop-blur">
             <div>
               <h3 className="font-bold text-slate-800">
-                {generating ? 'Generating Notes...' : 'Generation Complete'}
+                {generating ? (generationStatus || 'Generating Notes...') : 'Generation Complete'}
               </h3>
               <p className="text-sm text-slate-500">
                 Completed {completedLectures.length} of {plan?.lectures.length} lectures
