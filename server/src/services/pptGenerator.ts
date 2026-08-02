@@ -186,7 +186,7 @@ export async function generateModulePptx(
   // ── Title slide ─────────────────────────────────────────────────────────────
   const titleSlide = pres.addSlide({ masterName: 'PREMIUM_DARK' });
   // Gradient-style background overlay
-  titleSlide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: '100%', h: '100%', fill: { color: '0F172A' }, transparency: 0 });
+  titleSlide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: '100%', h: '100%', fill: { color: '0F172A' } });
   titleSlide.addText(subjectName, {
     x: 0.8, y: '30%', w: '85%', h: 1.4,
     fontSize: 44, bold: true, align: 'center', color: 'F8FAFC', fontFace: 'Segoe UI',
