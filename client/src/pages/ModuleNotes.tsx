@@ -4,7 +4,6 @@ import { getSubjectStatus, planModuleNotes, streamModuleNotes, downloadModuleDoc
 import type { ModulePlan, SubjectStatus } from '../api/ai';
 import { PageLoader } from '../components/LoadingSpinner';
 import MarkdownRenderer from '../components/MarkdownRenderer';
-import { waitForPrintWindowReady } from '../utils/printReady';
 
 export default function ModuleNotes() {
   const { subjectId, moduleNum } = useParams();
