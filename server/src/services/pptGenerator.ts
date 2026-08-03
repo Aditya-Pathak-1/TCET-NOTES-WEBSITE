@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import pptxgen from 'pptxgenjs';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const PPTX_OUTPUT_BASE = path.resolve(process.env.PPTX_OUTPUT_PATH ?? './data/pptx');
 
@@ -39,7 +38,9 @@ export function deletePptx(subjectId: string, moduleNumber: number): void {
 async function summarizeNotesToSlides(markdownContent: string): Promise<any[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-  const genAI = new GoogleGenerativeAI(apiKey);
+  const rawModel = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+  const model = rawModel.includes('1.5') ? 'gemini-2.0-flash' : rawModel;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const systemInstruction = `You are an expert academic presentation designer.
 Convert university lecture notes into a structured JSON array of slides.
@@ -74,19 +75,24 @@ Example:
   {"title": "Boolean Operations Flow", "layout": "DIAGRAM_EXPLANATION", "mermaidCode": "graph TD\\n  A[Input] --> B[AND Gate]\\n  A --> C[OR Gate]\\n  B --> D[Output 1]\\n  C --> E[Output 2]", "detailedExplanation": "Boolean operations process binary inputs through logic gates to produce outputs."}
 ]`;
 
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
-    systemInstruction,
-    generationConfig: {
-      responseMimeType: 'application/json'
-    }
-  });
-
   const prompt = `Convert these university lecture notes into presentation slides following all the rules strictly:\n\n${markdownContent}`;
 
-  const result = await model.generateContent(prompt);
-
-  const raw = result.response.text().trim();
+  const reqBody = {
+    system_instruction: { parts: [{ text: systemInstruction }] },
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json' },
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reqBody),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini API error ${res.status}: ${errText}`);
+  }
+  const json = await res.json() as any;
+  const raw = (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
   try {
