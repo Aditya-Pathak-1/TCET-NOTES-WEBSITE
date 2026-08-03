@@ -39,7 +39,7 @@ function getGeminiModel(system: string, model?: string) {
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel(
     {
-      model: model ?? process.env.GEMINI_MODEL ?? 'gemini-3.5-flash-lite',
+      model: model ?? process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
       systemInstruction: system,
     },
     { apiVersion: 'v1' } as any
@@ -92,7 +92,7 @@ Set totalHours = sum of all estimatedHours.
 Cover ALL topics in the syllabus. Do not skip any.
 CRITICAL: If the syllabus explicitly states the number of hours or lectures for this module (e.g., "8 hrs" or "8 lectures"), you MUST generate exactly that number of lectures (e.g., exactly 8 lectures, each 1 hour long). Do not group topics together to reduce the count.`;
 
-  const geminiModel = getGeminiModel(PLANNER_SYSTEM, 'gemini-3.5-flash-lite');
+  const geminiModel = getGeminiModel(PLANNER_SYSTEM, process.env.GEMINI_MODEL ?? 'gemini-1.5-flash');
   const result = await geminiModel.generateContent(prompt);
   const raw = result.response.text().trim();
 
@@ -346,7 +346,7 @@ export async function* generateNotes(
 async function* generateWithGemini(system: string, user: string, retries = 3): AsyncGenerator<string> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const model = getGeminiModel(system, process.env.GEMINI_MODEL ?? 'gemini-3.5-flash-lite');
+      const model = getGeminiModel(system, process.env.GEMINI_MODEL ?? 'gemini-1.5-flash');
       const result = await model.generateContentStream(user);
       for await (const chunk of result.stream) {
         const text = chunk.text();
