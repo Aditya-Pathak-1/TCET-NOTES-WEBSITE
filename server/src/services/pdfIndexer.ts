@@ -9,7 +9,7 @@
 import fs from 'fs';
 import crypto from 'crypto';
 import path from 'path';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// Using native fetch to Gemini REST API v1beta for embeddings
 import * as vectorStore from './vectorStore';
 import prisma from '../db/database';
 import { UPLOADS_DIR } from '../utils/fileUtils';
@@ -17,12 +17,6 @@ import { UPLOADS_DIR } from '../utils/fileUtils';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string; numpages: number }>;
 
-// ── Gemini client ─────────────────────────────────────────────────────────────
-function getEmbeddingClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set in environment');
-  return new GoogleGenerativeAI(apiKey);
-}
 
 // ── Hash cache (prevents re-indexing unchanged files) ─────────────────────────
 const hashCachePath = path.join(process.cwd(), 'data', 'index-hashes.json');
@@ -109,32 +103,36 @@ function chunkText(
  * Batches requests to stay within API rate limits.
  */
 async function generateEmbeddings(texts: string[]): Promise<number[][]> {
-  const genAI = getEmbeddingClient();
-  const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' }, { apiVersion: 'v1' } as any);
-
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
+  const BATCH_SIZE = 10;
   const embeddings: number[][] = [];
-  const BATCH_SIZE = 10; // Process 10 chunks at a time
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(text =>
-        model
-          .embedContent({
-            content: { role: 'user', parts: [{ text }] },
-            taskType: 'RETRIEVAL_DOCUMENT' as any,
-          })
-          .then(r => r.embedding.values)
-      )
-    );
-    embeddings.push(...batchResults);
-
-    // Small delay between batches to avoid rate limiting
-    if (i + BATCH_SIZE < texts.length) {
-      await new Promise(r => setTimeout(r, 200));
+    const body = {
+      requests: batch.map(text => ({
+        model: 'models/text-embedding-004',
+        content: { parts: [{ text }] },
+        taskType: 'RETRIEVAL_DOCUMENT',
+      })),
+    };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Embedding API error ${res.status}: ${err}`);
     }
+    const json = (await res.json()) as any;
+    for (const emb of json.embeddings) {
+      embeddings.push(emb.values);
+    }
+    if (i + BATCH_SIZE < texts.length) await new Promise(r => setTimeout(r, 200));
   }
-
   return embeddings;
 }
 
@@ -246,11 +244,25 @@ export async function deleteResourceIndex(resourceId: string): Promise<void> {
  * Generate a query embedding (for similarity search).
  */
 export async function embedQuery(query: string): Promise<number[]> {
-  const genAI = getEmbeddingClient();
-  const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' }, { apiVersion: 'v1' } as any);
-  const result = await model.embedContent({
-    content: { role: 'user', parts: [{ text: query }] },
-    taskType: 'RETRIEVAL_QUERY' as any,
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
+  const body = {
+    requests: [{
+      model: 'models/text-embedding-004',
+      content: { parts: [{ text: query }] },
+      taskType: 'RETRIEVAL_QUERY',
+    }],
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
-  return result.embedding.values;
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Embedding API error ${res.status}: ${err}`);
+  }
+  const json = (await res.json()) as any;
+  return json.embeddings[0].values;
 }

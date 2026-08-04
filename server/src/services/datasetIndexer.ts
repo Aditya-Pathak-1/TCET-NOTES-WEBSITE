@@ -12,7 +12,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// Using native fetch to Gemini REST API v1beta for embeddings
 import { parse as parseCsv } from 'csv-parse/sync';
 import * as vectorStore from './vectorStore';
 
@@ -101,40 +101,47 @@ function chunkText(text: string, fileName: string, chunkSize = 1000, overlap = 1
 
 // ── Embedding ─────────────────────────────────────────────────────────────────
 
-async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+async function embedTexts(texts: string[], taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY'): Promise<number[][]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' }, { apiVersion: 'v1' } as any);
-  const embeddings: number[][] = [];
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
   const BATCH_SIZE = 10;
+  const embeddings: number[][] = [];
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(
-      batch.map(text =>
-        model.embedContent({
-          content: { role: 'user', parts: [{ text }] },
-          taskType: 'RETRIEVAL_DOCUMENT' as any,
-        }).then(r => r.embedding.values)
-      )
-    );
-    embeddings.push(...results);
+    const body = {
+      requests: batch.map(text => ({
+        model: 'models/text-embedding-004',
+        content: { parts: [{ text }] },
+        taskType,
+      })),
+    };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Embedding API error ${res.status}: ${err}`);
+    }
+    const json = (await res.json()) as any;
+    for (const emb of json.embeddings) {
+      embeddings.push(emb.values);
+    }
     if (i + BATCH_SIZE < texts.length) await new Promise(r => setTimeout(r, 200));
   }
   return embeddings;
 }
 
+async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  return embedTexts(texts, 'RETRIEVAL_DOCUMENT');
+}
+
 export async function embedQuery(query: string): Promise<number[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' }, { apiVersion: 'v1' } as any);
-  const result = await model.embedContent({
-    content: { role: 'user', parts: [{ text: query }] },
-    taskType: 'RETRIEVAL_QUERY' as any,
-  });
-  return result.embedding.values;
+  const results = await embedTexts([query], 'RETRIEVAL_QUERY');
+  return results[0];
 }
 
 // ── Main Index Function ───────────────────────────────────────────────────────

@@ -8,7 +8,7 @@
  * Priority: syllabus (structure) > reference books (content) > LLM knowledge (fallback)
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// No SDK needed — using native fetch to Gemini REST API v1beta
 
 export interface ContextChunk {
   text: string;
@@ -31,19 +31,81 @@ export interface ModulePlan {
   totalHours: number;
 }
 
-// ── Gemini Client ─────────────────────────────────────────────────────────────
+// ── Gemini REST API helpers ───────────────────────────────────────────────────
 
-function getGeminiModel(system: string, model?: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel(
-    {
-      model: model ?? process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
-      systemInstruction: system,
-    },
-    { apiVersion: 'v1' } as any
-  );
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+function getApiKey(): string {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY not set');
+  return key;
+}
+
+function getModel(): string {
+  const model = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+  return model.includes('1.5') ? 'gemini-2.0-flash' : model;
+}
+
+/** Non-streaming generateContent via REST */
+async function geminiGenerate(system: string, user: string): Promise<string> {
+  const apiKey = getApiKey();
+  const model = getModel();
+  const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
+  const body = {
+    system_instruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API error ${res.status}: ${err}`);
+  }
+  const json = await res.json() as any;
+  return json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
+
+/** Streaming generateContent via REST SSE */
+async function* geminiStream(system: string, user: string): AsyncGenerator<string> {
+  const apiKey = getApiKey();
+  const model = getModel();
+  const url = `${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const body = {
+    system_instruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gemini API error ${res.status}: ${err}`);
+  }
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === '[DONE]') continue;
+      try {
+        const json = JSON.parse(data) as any;
+        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) yield text;
+      } catch { /* skip malformed chunks */ }
+    }
+  }
 }
 
 // ── Module Planning ───────────────────────────────────────────────────────────
@@ -92,9 +154,7 @@ Set totalHours = sum of all estimatedHours.
 Cover ALL topics in the syllabus. Do not skip any.
 CRITICAL: If the syllabus explicitly states the number of hours or lectures for this module (e.g., "8 hrs" or "8 lectures"), you MUST generate exactly that number of lectures (e.g., exactly 8 lectures, each 1 hour long). Do not group topics together to reduce the count.`;
 
-  const geminiModel = getGeminiModel(PLANNER_SYSTEM, process.env.GEMINI_MODEL ?? 'gemini-1.5-flash');
-  const result = await geminiModel.generateContent(prompt);
-  const raw = result.response.text().trim();
+  const raw = (await geminiGenerate(PLANNER_SYSTEM, prompt)).trim();
 
   // Strip markdown code fences if present
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
@@ -346,22 +406,17 @@ export async function* generateNotes(
 async function* generateWithGemini(system: string, user: string, retries = 3): AsyncGenerator<string> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const model = getGeminiModel(system, process.env.GEMINI_MODEL ?? 'gemini-1.5-flash');
-      const result = await model.generateContentStream(user);
-      for await (const chunk of result.stream) {
-        const text = chunk.text();
-        if (text) yield text;
-      }
-      return; // success — exit retry loop
+      yield* geminiStream(system, user);
+      return; // success
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       const isFetchError = msg.includes('fetch failed') || msg.includes('ECONNRESET') || msg.includes('timeout');
       if (isFetchError && attempt < retries) {
         console.warn(`[llmService] Gemini fetch failed (attempt ${attempt}/${retries}), retrying in 2s...`);
-        await new Promise(r => setTimeout(r, 2000 * attempt)); // exponential backoff
+        await new Promise(r => setTimeout(r, 2000 * attempt));
         continue;
       }
-      throw err; // non-retriable error or out of retries
+      throw err;
     }
   }
 }
