@@ -119,6 +119,38 @@ Rules:
 4. Group related sub-topics into one lecture when appropriate.
 5. Return ONLY a valid JSON object — no markdown, no explanation outside JSON.`;
 
+async function generateContent(system: string, user: string): Promise<string> {
+  const provider = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
+
+  if (provider === 'groq') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
+    const result = await client.chat.completions.create({
+      model: process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    });
+    return result.choices[0]?.message?.content ?? '';
+  }
+
+  if (provider === 'local') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: 'ollama',
+      baseURL: process.env.LOCAL_API_BASE ?? 'http://localhost:11434/v1',
+    });
+    const result = await client.chat.completions.create({
+      model: process.env.LOCAL_MODEL ?? 'llama3.1',
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    });
+    return result.choices[0]?.message?.content ?? '';
+  }
+
+  return geminiGenerate(system, user);
+}
+
 export async function planModule(
   subjectName: string,
   moduleNumber: number,
@@ -154,7 +186,7 @@ Set totalHours = sum of all estimatedHours.
 Cover ALL topics in the syllabus. Do not skip any.
 CRITICAL: If the syllabus explicitly states the number of hours or lectures for this module (e.g., "8 hrs" or "8 lectures"), you MUST generate exactly that number of lectures (e.g., exactly 8 lectures, each 1 hour long). Do not group topics together to reduce the count.`;
 
-  const raw = (await geminiGenerate(PLANNER_SYSTEM, prompt)).trim();
+  const raw = (await generateContent(PLANNER_SYSTEM, prompt)).trim();
 
   // Strip markdown code fences if present
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
@@ -376,7 +408,11 @@ export async function* generateLecture(
     subjectName, moduleNumber, moduleTitle, lecture, syllabusContext, referenceContext
   );
 
-  if (provider === 'openai') {
+  if (provider === 'groq') {
+    yield* generateWithGroq(systemPrompt, userPrompt);
+  } else if (provider === 'local') {
+    yield* generateWithLocal(systemPrompt, userPrompt);
+  } else if (provider === 'openai') {
     yield* generateWithOpenAI(systemPrompt, userPrompt);
   } else if (provider === 'claude' || provider === 'anthropic') {
     yield* generateWithClaude(systemPrompt, userPrompt);
@@ -426,6 +462,40 @@ async function* generateWithOpenAI(system: string, user: string): AsyncGenerator
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const stream = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL ?? 'gpt-4o',
+    stream: true,
+    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+  });
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) yield text;
+  }
+}
+
+async function* generateWithGroq(system: string, user: string): AsyncGenerator<string> {
+  const { default: OpenAI } = await import('openai');
+  const client = new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
+  });
+  const stream = await client.chat.completions.create({
+    model: process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
+    stream: true,
+    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+  });
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) yield text;
+  }
+}
+
+async function* generateWithLocal(system: string, user: string): AsyncGenerator<string> {
+  const { default: OpenAI } = await import('openai');
+  const client = new OpenAI({
+    apiKey: 'ollama',
+    baseURL: process.env.LOCAL_API_BASE ?? 'http://localhost:11434/v1',
+  });
+  const stream = await client.chat.completions.create({
+    model: process.env.LOCAL_MODEL ?? 'llama3.1',
     stream: true,
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
   });

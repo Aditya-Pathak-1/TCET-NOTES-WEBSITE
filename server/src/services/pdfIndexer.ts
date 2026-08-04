@@ -99,10 +99,34 @@ function chunkText(
 // ── Embedding generation ──────────────────────────────────────────────────────
 
 /**
- * Generates embeddings for an array of text chunks using Gemini.
- * Batches requests to stay within API rate limits.
+ * Generates embeddings for an array of text chunks.
+ * Uses Ollama-compatible local endpoint if LLM_PROVIDER=local,
+ * otherwise falls back to Gemini text-embedding-004.
  */
 async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  const provider = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
+
+  if (provider === 'local') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: 'ollama',
+      baseURL: process.env.LOCAL_API_BASE ?? 'http://localhost:11434/v1',
+    });
+    const model = process.env.LOCAL_EMBEDDING_MODEL ?? 'nomic-embed-text';
+    const embeddings: number[][] = [];
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
+      for (const text of batch) {
+        const res = await client.embeddings.create({ model, input: text });
+        embeddings.push(res.data[0].embedding);
+      }
+      if (i + BATCH_SIZE < texts.length) await new Promise(r => setTimeout(r, 100));
+    }
+    return embeddings;
+  }
+
+  // Gemini fallback
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
@@ -244,6 +268,19 @@ export async function deleteResourceIndex(resourceId: string): Promise<void> {
  * Generate a query embedding (for similarity search).
  */
 export async function embedQuery(query: string): Promise<number[]> {
+  const provider = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
+
+  if (provider === 'local') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: 'ollama',
+      baseURL: process.env.LOCAL_API_BASE ?? 'http://localhost:11434/v1',
+    });
+    const model = process.env.LOCAL_EMBEDDING_MODEL ?? 'nomic-embed-text';
+    const res = await client.embeddings.create({ model, input: query });
+    return res.data[0].embedding;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;

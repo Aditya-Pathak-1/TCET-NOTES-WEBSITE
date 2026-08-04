@@ -36,11 +36,7 @@ export function deletePptx(subjectId: string, moduleNumber: number): void {
 // ─── LLM: notes → slide JSON ──────────────────────────────────────────────────
 
 async function summarizeNotesToSlides(markdownContent: string): Promise<any[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-  const rawModel = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
-  const model = rawModel.includes('1.5') ? 'gemini-2.0-flash' : rawModel;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const provider = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
 
   const systemInstruction = `You are an expert academic presentation designer.
 Convert university lecture notes into a structured JSON array of slides.
@@ -77,22 +73,54 @@ Example:
 
   const prompt = `Convert these university lecture notes into presentation slides following all the rules strictly:\n\n${markdownContent}`;
 
-  const reqBody = {
-    system_instruction: { parts: [{ text: systemInstruction }] },
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: 'application/json' },
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(reqBody),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${errText}`);
+  let raw = '';
+  if (provider === 'groq') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
+    const result = await client.chat.completions.create({
+      model: process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
+      messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }],
+    });
+    raw = result.choices[0]?.message?.content ?? '';
+  } else if (provider === 'local') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: 'ollama',
+      baseURL: process.env.LOCAL_API_BASE ?? 'http://localhost:11434/v1',
+    });
+    const result = await client.chat.completions.create({
+      model: process.env.LOCAL_MODEL ?? 'llama3.1',
+      messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }],
+    });
+    raw = result.choices[0]?.message?.content ?? '';
+  } else {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+    const rawModel = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+    const model = rawModel.includes('1.5') ? 'gemini-2.0-flash' : rawModel;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const reqBody = {
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json' },
+    };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reqBody),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API error ${res.status}: ${errText}`);
+    }
+    const json = await res.json() as any;
+    raw = (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
   }
-  const json = await res.json() as any;
-  const raw = (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
+
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
   try {

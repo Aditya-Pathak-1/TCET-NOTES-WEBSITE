@@ -99,9 +99,32 @@ function chunkText(text: string, fileName: string, chunkSize = 1000, overlap = 1
   return chunks;
 }
 
-// ── Embedding ─────────────────────────────────────────────────────────────────
+// ── Embedding ─────────────────────────────────────────────────────────────────────────
 
 async function embedTexts(texts: string[], taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY'): Promise<number[][]> {
+  const provider = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
+
+  if (provider === 'local') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: 'ollama',
+      baseURL: process.env.LOCAL_API_BASE ?? 'http://localhost:11434/v1',
+    });
+    const model = process.env.LOCAL_EMBEDDING_MODEL ?? 'nomic-embed-text';
+    const embeddings: number[][] = [];
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
+      for (const text of batch) {
+        const res = await client.embeddings.create({ model, input: text });
+        embeddings.push(res.data[0].embedding);
+      }
+      if (i + BATCH_SIZE < texts.length) await new Promise(r => setTimeout(r, 100));
+    }
+    return embeddings;
+  }
+
+  // Gemini fallback
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key=${apiKey}`;
