@@ -8,7 +8,7 @@
  * Priority: syllabus (structure) > reference books (content) > LLM knowledge (fallback)
  */
 
-// No SDK needed — using native fetch to Gemini REST API v1beta
+import { GoogleGenAI } from '@google/genai';
 
 export interface ContextChunk {
   text: string;
@@ -33,79 +33,10 @@ export interface ModulePlan {
 
 // ── Gemini REST API helpers ───────────────────────────────────────────────────
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-
-function getApiKey(): string {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY not set');
-  return key;
-}
-
-function getModel(): string {
-  const model = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
-  return model.includes('1.5') ? 'gemini-2.0-flash' : model;
-}
-
-/** Non-streaming generateContent via REST */
-async function geminiGenerate(system: string, user: string): Promise<string> {
-  const apiKey = getApiKey();
-  const model = getModel();
-  const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`;
-  const body = {
-    system_instruction: { parts: [{ text: system }] },
-    contents: [{ role: 'user', parts: [{ text: user }] }],
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${err}`);
-  }
-  const json = await res.json() as any;
-  return json.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-}
-
-/** Streaming generateContent via REST SSE */
-async function* geminiStream(system: string, user: string): AsyncGenerator<string> {
-  const apiKey = getApiKey();
-  const model = getModel();
-  const url = `${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
-  const body = {
-    system_instruction: { parts: [{ text: system }] },
-    contents: [{ role: 'user', parts: [{ text: user }] }],
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${err}`);
-  }
-  const reader = res.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.startsWith('data:')) continue;
-      const data = line.slice(5).trim();
-      if (!data || data === '[DONE]') continue;
-      try {
-        const json = JSON.parse(data) as any;
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) yield text;
-      } catch { /* skip malformed chunks */ }
-    }
-  }
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  return new GoogleGenAI({ apiKey });
 }
 
 // ── Module Planning ───────────────────────────────────────────────────────────
@@ -135,6 +66,19 @@ async function generateContent(system: string, user: string): Promise<string> {
     return result.choices[0]?.message?.content ?? '';
   }
 
+  if (provider === 'openrouter') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+    });
+    const result = await client.chat.completions.create({
+      model: process.env.OPENROUTER_MODEL ?? 'google/gemma-2-9b-it:free',
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    });
+    return result.choices[0]?.message?.content ?? '';
+  }
+
   if (provider === 'local') {
     const { default: OpenAI } = await import('openai');
     const client = new OpenAI({
@@ -148,7 +92,13 @@ async function generateContent(system: string, user: string): Promise<string> {
     return result.choices[0]?.message?.content ?? '';
   }
 
-  return geminiGenerate(system, user);
+  const ai = getGeminiClient();
+  const result = await ai.models.generateContent({
+    model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
+    contents: user,
+    config: { systemInstruction: system }
+  });
+  return result.text?.trim() ?? '';
 }
 
 export async function planModule(
@@ -368,8 +318,11 @@ function buildLectureUserPrompt(
     ? syllabusContext.map((c, i) => `[SYLLABUS Source ${i + 1}: ${c.source}]\n${c.text}`).join('\n\n---\n\n')
     : 'No syllabus context available — use general knowledge for this subject.';
 
-  const referenceText = referenceContext.length
-    ? referenceContext.map((c, i) => `[REFERENCE Source ${i + 1}: ${c.source}]\n${c.text}`).join('\n\n---\n\n')
+  // To prevent hitting strict free-tier TPM limits on Groq, limit to top 5 reference chunks
+  const limitedReferenceContext = referenceContext.slice(0, 5);
+
+  const referenceText = limitedReferenceContext.length
+    ? limitedReferenceContext.map((c, i) => `[REFERENCE Source ${i + 1}: ${c.source}]\n${c.text}`).join('\n\n---\n\n')
     : 'No reference book uploaded — use your academic knowledge.';
 
   return `=== SYLLABUS CONTEXT (STRUCTURE & SCOPE) ===
@@ -410,6 +363,8 @@ export async function* generateLecture(
 
   if (provider === 'groq') {
     yield* generateWithGroq(systemPrompt, userPrompt);
+  } else if (provider === 'openrouter') {
+    yield* generateWithOpenRouter(systemPrompt, userPrompt);
   } else if (provider === 'local') {
     yield* generateWithLocal(systemPrompt, userPrompt);
   } else if (provider === 'openai') {
@@ -442,8 +397,17 @@ export async function* generateNotes(
 async function* generateWithGemini(system: string, user: string, retries = 3): AsyncGenerator<string> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      yield* geminiStream(system, user);
-      return; // success
+      const ai = getGeminiClient();
+      const resultStream = await ai.models.generateContentStream({
+        model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
+        contents: user,
+        config: { systemInstruction: system }
+      });
+      for await (const chunk of resultStream) {
+        const text = chunk.text;
+        if (text) yield text;
+      }
+      return; // success — exit retry loop
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       const isFetchError = msg.includes('fetch failed') || msg.includes('ECONNRESET') || msg.includes('timeout');
@@ -477,14 +441,28 @@ async function* generateWithGroq(system: string, user: string): AsyncGenerator<s
     apiKey: process.env.GROQ_API_KEY,
     baseURL: 'https://api.groq.com/openai/v1',
   });
-  const stream = await client.chat.completions.create({
-    model: process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
-    stream: true,
-    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-  });
-  for await (const chunk of stream) {
-    const text = chunk.choices[0]?.delta?.content;
-    if (text) yield text;
+  
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const stream = await client.chat.completions.create({
+        model: process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
+        stream: true,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      });
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content;
+        if (text) yield text;
+      }
+      return; // Success, exit retry loop
+    } catch (err: any) {
+      if (err?.status === 429 && attempt < maxRetries) {
+        console.warn(`[Groq] Rate limit hit (attempt ${attempt}/${maxRetries}). Retrying in 5s...`);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+      throw err;
+    }
   }
 }
 
@@ -518,6 +496,37 @@ async function* generateWithClaude(system: string, user: string): AsyncGenerator
   for await (const event of stream) {
     if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
       yield event.delta.text;
+    }
+  }
+}
+
+async function* generateWithOpenRouter(system: string, user: string): AsyncGenerator<string> {
+  const { default: OpenAI } = await import('openai');
+  const client = new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: 'https://openrouter.ai/api/v1',
+  });
+  
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const stream = await client.chat.completions.create({
+        model: process.env.OPENROUTER_MODEL ?? 'google/gemma-2-9b-it:free',
+        stream: true,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      });
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content;
+        if (text) yield text;
+      }
+      return; // Success, exit retry loop
+    } catch (err: any) {
+      if (err?.status === 429 && attempt < maxRetries) {
+        console.warn(`[OpenRouter] Rate limit hit (attempt ${attempt}/${maxRetries}). Retrying in 5s...`);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+      throw err;
     }
   }
 }

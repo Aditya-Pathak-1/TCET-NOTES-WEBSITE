@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import pptxgen from 'pptxgenjs';
+import { GoogleGenAI } from '@google/genai';
 
 const PPTX_OUTPUT_BASE = path.resolve(process.env.PPTX_OUTPUT_PATH ?? './data/pptx');
 
@@ -36,7 +37,7 @@ export function deletePptx(subjectId: string, moduleNumber: number): void {
 // ─── LLM: notes → slide JSON ──────────────────────────────────────────────────
 
 async function summarizeNotesToSlides(markdownContent: string): Promise<any[]> {
-  const provider = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
+  const provider = (process.env.PPT_PROVIDER ?? process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
 
   const systemInstruction = `You are an expert academic presentation designer.
 Convert university lecture notes into a structured JSON array of slides.
@@ -80,11 +81,36 @@ Example:
       apiKey: process.env.GROQ_API_KEY,
       baseURL: 'https://api.groq.com/openai/v1',
     });
-    const result = await client.chat.completions.create({
-      model: process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
+    
+    console.log(`[PPT] Requesting Groq stream for PPT generation...`);
+    const stream = await client.chat.completions.create({
+      model: process.env.PPT_MODEL ?? 'llama3-8b-8192',
       messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }],
+      stream: true,
     });
-    raw = result.choices[0]?.message?.content ?? '';
+    
+    raw = '';
+    for await (const chunk of stream) {
+      raw += chunk.choices[0]?.delta?.content || '';
+    }
+    console.log(`[PPT] Groq stream completed. Received ${raw.length} characters.`);
+  } else if (provider === 'openrouter') {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+    });
+    console.log(`[PPT] Requesting OpenRouter stream for PPT generation...`);
+    const stream = await client.chat.completions.create({
+      model: process.env.OPENROUTER_MODEL ?? 'openrouter/free',
+      messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }],
+      stream: true,
+    });
+    raw = '';
+    for await (const chunk of stream) {
+      raw += chunk.choices[0]?.delta?.content || '';
+    }
+    console.log(`[PPT] OpenRouter stream completed. Received ${raw.length} characters.`);
   } else if (provider === 'local') {
     const { default: OpenAI } = await import('openai');
     const client = new OpenAI({
@@ -99,28 +125,19 @@ Example:
   } else {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-    const rawModel = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
-    const model = rawModel.includes('1.5') ? 'gemini-2.0-flash' : rawModel;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const ai = new GoogleGenAI({ apiKey });
 
-    const reqBody = {
-      system_instruction: { parts: [{ text: systemInstruction }] },
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    };
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reqBody),
+    const result = await ai.models.generateContent({
+      model: process.env.GEMINI_MODEL ?? 'gemini-1.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json'
+      }
     });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Gemini API error ${res.status}: ${errText}`);
-    }
-    const json = await res.json() as any;
-    raw = (json.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
-  }
 
+    raw = result.text?.trim() ?? '';
+  }
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
   try {
