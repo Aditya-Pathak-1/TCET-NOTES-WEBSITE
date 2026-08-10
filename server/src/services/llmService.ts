@@ -163,8 +163,8 @@ ABSOLUTE RULES:
 3. If a requested topic is completely irrelevant, not applicable to the syllabus, or outside the scope of the subject, do NOT generate hallucinated content and do NOT output any text or heading for it. Just completely skip it.
 4. If a topic is applicable but not fully covered in the reference book, you may use your academic knowledge to fill gaps.
 5. Write at university level. Notes should be detailed enough for exam preparation.
-6. Provide a highly detailed, comprehensive explanation for each topic. Expand deeply on all theories, operations, and examples to ensure the content is very rich and thorough (aim for 1500-2000 words total). IMPORTANT: Do NOT artificially repeat headings, lecture numbers, or content to increase length; instead, provide more depth, real-world examples, and technical details.
-7. IMPORTANT: Do NOT generate any ASCII art diagrams, mermaid diagrams, or code blocks for diagrams. Describe structural concepts using plain text and bullet points instead.
+6. Provide an extremely detailed, comprehensive theoretical explanation for each topic. Expand deeply on all theories, operations, and background concepts to ensure the content is very rich and thorough (aim for 1500-2000 words total). The theory section must be extensive. IMPORTANT: Do NOT artificially repeat headings, lecture numbers, or content to increase length; instead, provide more depth, real-world examples, and technical details.
+7. If a process, algorithm, or architecture can be visualized, generate a flowchart or diagram using a Mermaid.js code block (e.g., ```mermaid ... ```). Do NOT use ASCII art diagrams.
 8. Do NOT use LaTeX-style math notation (like $0$). Write out all math, numbers, and formulas in plain English text.
 9. Use proper tables with headers for comparisons.`;
 
