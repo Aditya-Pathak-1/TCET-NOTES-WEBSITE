@@ -50,9 +50,11 @@ export interface SearchResult {
 // Form / DTO types used by the API layer
 export interface CreateSubjectDto {
   name: string;
+  short?: string;
   description?: string;
   color?: string;
   icon?: string;
+  totalModules?: number;
 }
 
 export interface UpdateSubjectDto {
