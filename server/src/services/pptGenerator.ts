@@ -59,8 +59,8 @@ STRICT RULES:
      * Use short node labels (max 4 words each).
    - "detailedExplanation": 1-2 sentences describing the diagram. Keep it brief.
 
-4. Slide count: Generate as many slides as needed to cover the content well (typically 12-20).
-   Do NOT artificially limit or pad. Quality over quantity.
+4. Slide count: You MUST generate EXACTLY 4 slides to cover the content.
+   Do not generate more or less than 4 slides. Break down the content to fit exactly 4 slides.
 
 5. Visual balance: At least 40% of slides must be DIAGRAM_EXPLANATION.
    Use diagrams for: architectures, workflows, classifications, comparisons, timelines.
