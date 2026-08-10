@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first tsx watch src/index.ts",
     "build": "npx cross-env DATABASE_URL=\"file:./data/lms.db\" prisma generate && npx cross-env DATABASE_URL=\"file:./data/lms.db\" prisma db push && tsc",
-    "start": "node dist/index.js",
+    "start": "cross-env DATABASE_URL=\"file:./data/lms.db\" node dist/index.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
