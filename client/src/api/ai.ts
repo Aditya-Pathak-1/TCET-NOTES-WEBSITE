@@ -14,6 +14,7 @@ export interface Subject {
   color: string;
   icon: string;
   totalModules: number;
+  subjectType?: 'default' | 'custom';
 }
 
 export interface SubjectStatus {

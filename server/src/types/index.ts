@@ -11,9 +11,12 @@ export type ResourceType =
 export interface Subject {
   id: string;
   name: string;
+  short: string;
   description: string | null;
   color: string;
   icon: string;
+  totalModules: number;
+  subjectType: string;
   createdAt: string;
   updatedAt: string;
   ownerId: string | null;
@@ -44,9 +47,11 @@ export interface Flashcard {
 
 export interface CreateSubjectDto {
   name: string;
+  short?: string;
   description?: string;
   color?: string;
   icon?: string;
+  totalModules?: number;
 }
 
 export interface UpdateSubjectDto {

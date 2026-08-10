@@ -94,14 +94,14 @@ async function readFilesAsContext(
 // ── GET /ai/subjects ──────────────────────────────────────────────────────────
 
 export const getSubjects = asyncHandler(async (_req: Request, res: Response) => {
-  res.json({ data: getAllSubjects() });
+  res.json({ data: await getAllSubjects() });
 });
 
 // ── GET /ai/subjects/:subjectId/status ────────────────────────────────────────
 
 export const getSubjectStatus = asyncHandler(async (req: Request, res: Response) => {
   const { subjectId } = req.params;
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -129,7 +129,7 @@ export const uploadSubjectFile = asyncHandler(async (req: Request, res: Response
   const { subjectId } = req.params;
   const docType = (req.body.docType ?? 'reference') as DocumentType;
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -162,7 +162,7 @@ export const uploadSubjectFile = asyncHandler(async (req: Request, res: Response
 export const deleteSubjectFile = asyncHandler(async (req: Request, res: Response) => {
   const { subjectId, docType, fileName } = req.params;
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -183,7 +183,7 @@ export const planModuleNotes = asyncHandler(async (req: Request, res: Response) 
   const { subjectId, moduleNum } = req.params;
   const moduleNumber = parseInt(moduleNum, 10);
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -227,7 +227,7 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
   const moduleNumber = parseInt(moduleNum, 10);
   const { plan } = req.body as { plan: import('../services/llmService').ModulePlan };
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -331,7 +331,7 @@ export const downloadModuleDocx = asyncHandler(async (req: Request, res: Respons
   const { subjectId, moduleNum } = req.params;
   const moduleNumber = parseInt(moduleNum, 10);
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -356,7 +356,7 @@ export const regenerateModuleDocx = asyncHandler(async (req: Request, res: Respo
   const { subjectId, moduleNum } = req.params;
   const moduleNumber = parseInt(moduleNum, 10);
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -395,7 +395,7 @@ export const downloadModulePptx = asyncHandler(async (req: Request, res: Respons
   const { subjectId, moduleNum } = req.params;
   const moduleNumber = parseInt(moduleNum, 10);
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -419,7 +419,7 @@ export const regenerateModulePptx = asyncHandler(async (req: Request, res: Respo
   const { subjectId, moduleNum } = req.params;
   const moduleNumber = parseInt(moduleNum, 10);
 
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;
@@ -453,7 +453,7 @@ export const regenerateModulePptx = asyncHandler(async (req: Request, res: Respo
 
 export const reindexSubject = asyncHandler(async (req: Request, res: Response) => {
   const { subjectId } = req.params;
-  const subject = getSubjectById(subjectId);
+  const subject = await getSubjectById(subjectId);
   if (!subject) {
     res.status(404).json({ error: 'Subject not found' });
     return;

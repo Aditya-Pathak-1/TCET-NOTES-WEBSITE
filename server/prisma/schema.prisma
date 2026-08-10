@@ -12,16 +12,19 @@ datasource db {
 }
 
 model Subject {
-  id          String     @id
-  name        String
-  description String?
-  color       String     @default("#6366f1")
-  icon        String     @default("📚")
-  createdAt   String
-  updatedAt   String
-  ownerId     String?    // nullable now; required after auth is added
+  id           String     @id
+  name         String
+  short        String     @default("")
+  description  String?
+  color        String     @default("#6366f1")
+  icon         String     @default("📚")
+  totalModules Int        @default(6)
+  subjectType  String     @default("custom")
+  createdAt    String
+  updatedAt    String
+  ownerId      String?    // nullable now; required after auth is added
 
-  resources   Resource[]
+  resources    Resource[]
 }
 
 model Resource {

@@ -5,17 +5,20 @@
  * No database required — subjects are hardcoded here.
  */
 
-export interface FixedSubject {
-  id: string;        // URL-safe identifier
-  name: string;      // Full subject name
-  short: string;     // Abbreviation shown in UI
+import prisma from '../db/database';
+
+export interface SubjectBase {
+  id: string;
+  name: string;
+  short: string;
   description: string;
-  color: string;     // Tailwind-compatible hex
-  icon: string;      // Emoji icon
+  color: string;
+  icon: string;
   totalModules: number;
+  subjectType?: 'default' | 'custom';
 }
 
-export const FIXED_SUBJECTS: FixedSubject[] = [
+export const FIXED_SUBJECTS: SubjectBase[] = [
   {
     id: 'fiot',
     name: 'Fundamentals of Internet of Things',
@@ -24,6 +27,7 @@ export const FIXED_SUBJECTS: FixedSubject[] = [
     color: '#6366f1',
     icon: '🌐',
     totalModules: 6,
+    subjectType: 'default',
   },
   {
     id: 'dsca',
@@ -33,6 +37,7 @@ export const FIXED_SUBJECTS: FixedSubject[] = [
     color: '#0ea5e9',
     icon: '💻',
     totalModules: 6,
+    subjectType: 'default',
   },
   {
     id: 'math3',
@@ -42,6 +47,7 @@ export const FIXED_SUBJECTS: FixedSubject[] = [
     color: '#10b981',
     icon: '📐',
     totalModules: 6,
+    subjectType: 'default',
   },
   {
     id: 'ds',
@@ -51,6 +57,7 @@ export const FIXED_SUBJECTS: FixedSubject[] = [
     color: '#f59e0b',
     icon: '🗂️',
     totalModules: 6,
+    subjectType: 'default',
   },
   {
     id: 'aad',
@@ -60,6 +67,7 @@ export const FIXED_SUBJECTS: FixedSubject[] = [
     color: '#ec4899',
     icon: '🧠',
     totalModules: 6,
+    subjectType: 'default',
   },
   {
     id: 'uhv',
@@ -69,13 +77,31 @@ export const FIXED_SUBJECTS: FixedSubject[] = [
     color: '#8b5cf6',
     icon: '🌱',
     totalModules: 6,
+    subjectType: 'default',
   },
 ];
 
-export function getSubjectById(id: string): FixedSubject | undefined {
-  return FIXED_SUBJECTS.find(s => s.id === id);
+export async function getSubjectById(id: string): Promise<SubjectBase | undefined> {
+  const fixed = FIXED_SUBJECTS.find(s => s.id === id);
+  if (fixed) return fixed;
+
+  const dbSubject = await prisma.subject.findUnique({ where: { id } });
+  if (!dbSubject) return undefined;
+
+  return {
+    ...dbSubject,
+    description: dbSubject.description || '',
+    subjectType: dbSubject.subjectType as 'default' | 'custom',
+  };
 }
 
-export function getAllSubjects(): FixedSubject[] {
-  return FIXED_SUBJECTS;
+export async function getAllSubjects(): Promise<SubjectBase[]> {
+  const dbSubjects = await prisma.subject.findMany({ orderBy: { createdAt: 'desc' } });
+  const mappedDbSubjects: SubjectBase[] = dbSubjects.map(s => ({
+    ...s,
+    description: s.description || '',
+    subjectType: s.subjectType as 'default' | 'custom',
+  }));
+
+  return [...FIXED_SUBJECTS, ...mappedDbSubjects];
 }
