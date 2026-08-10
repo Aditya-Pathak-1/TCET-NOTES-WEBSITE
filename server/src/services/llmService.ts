@@ -192,8 +192,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 ### Concept Explanation
 [Detailed concept explanation]
 
-### Truth Table / Characteristic Table
-[Table if applicable, else SKIP this entire section including the heading]
+*(If the topic involves a Truth Table or Characteristic Table, add a section starting with "### Truth Table / Characteristic Table" and provide the table here. Otherwise, omit this section completely.)*
 
 ### Example / Solved Problem
 [Examples and solved problems]
@@ -201,8 +200,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 ### Applications
 [Applications]
 
-### Formula (if available)
-[Formulas if available, else SKIP this entire section including the heading]
+*(If the topic involves Formulas, add a section starting with "### Formula" and provide them here. Otherwise, omit this section completely.)*
 
 *(End of per-topic structure)*
 
@@ -258,8 +256,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 ### Working / Operation
 [Detailed step-by-step working or operation]
 
-### Truth Table / Excitation Table
-[Table if applicable, else SKIP this entire section including the heading]
+*(If the topic involves a Truth Table or Excitation Table, add a section starting with "### Truth Table / Excitation Table" and provide the table here. Otherwise, omit this section completely.)*
 
 ### Advantages
 - [Advantage 1]
