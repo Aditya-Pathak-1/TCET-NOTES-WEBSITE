@@ -163,7 +163,7 @@ ABSOLUTE RULES:
 3. If a requested topic is completely irrelevant, not applicable to the syllabus, or outside the scope of the subject, do NOT generate hallucinated content and do NOT output any text or heading for it. Just completely skip it.
 4. If a topic is applicable but not fully covered in the reference book, you may use your academic knowledge to fill gaps.
 5. Write at university level. Notes should be detailed enough for exam preparation.
-6. Every lecture must represent ~1 hour of classroom teaching — be thorough, not brief.
+6. Every lecture must be extremely detailed, containing enough content to fill EXACTLY 4 pages of written notes (approximately 1500-2000 words). Do not generate brief notes; you MUST expand the content to cover 4 pages.
 7. IMPORTANT: Do NOT generate any ASCII art diagrams, mermaid diagrams, or code blocks for diagrams. Describe structural concepts using plain text and bullet points instead.
 8. Do NOT use LaTeX-style math notation (like $0$). Write out all math, numbers, and formulas in plain English text.
 9. Use proper tables with headers for comparisons.`;
