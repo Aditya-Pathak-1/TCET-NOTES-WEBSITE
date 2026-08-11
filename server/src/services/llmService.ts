@@ -202,7 +202,7 @@ ABSOLUTE RULES:
 4. If a topic is applicable but not fully covered in the reference book, you may use your academic knowledge to fill gaps.
 5. Write at university level. Notes should be detailed enough for exam preparation.
 6. Provide an extremely detailed, comprehensive theoretical explanation for each topic. Expand deeply on all theories, operations, and background concepts to ensure the content is very rich and thorough (aim for 1500-2000 words total). The theory section must be extensive. IMPORTANT: Do NOT artificially repeat headings, lecture numbers, or content to increase length; instead, provide more depth, real-world examples, and technical details.
-7. If a process or algorithm can be visualized, generate a flowchart ONLY using a Mermaid.js code block (e.g., ```mermaid flowchart TD ... ```). Do NOT generate any other types of diagrams, and do NOT use ASCII art.
+7. If a process or algorithm can be visualized, generate a flowchart ONLY using a Mermaid.js code block (e.g., \`\`\`mermaid flowchart TD ... \`\`\`). Do NOT generate any other types of diagrams, and do NOT use ASCII art.
 8. Do NOT use LaTeX-style math notation (like $0$). Write out all math, numbers, and formulas in plain English text.
 9. Use proper tables with headers for comparisons.`;
 
