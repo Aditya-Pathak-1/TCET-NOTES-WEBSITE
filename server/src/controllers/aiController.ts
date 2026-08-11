@@ -25,7 +25,7 @@ import {
   extractText,
   getFullFilePath,
 } from '../services/datasetIndexer';
-import { planModule, generateLecture } from '../services/llmService';
+import { planModule, generateLecture, verifyDocumentRelevance } from '../services/llmService';
 import type { ContextChunk } from '../services/llmService';
 import {
   generateModuleDocx,
@@ -142,6 +142,21 @@ export const uploadSubjectFile = asyncHandler(async (req: Request, res: Response
 
   // Save file to disk
   const filePath = await saveUploadedFile(subjectId, docType, req.file);
+
+  // Verify document relevance before indexing
+  try {
+    const text = await extractText(filePath);
+    if (text && text.trim().length > 50) {
+      const verification = await verifyDocumentRelevance(text, subject.name, docType);
+      if (!verification.isValid) {
+        fs.unlinkSync(filePath); // Delete invalid file
+        res.status(400).json({ error: `Upload rejected: ${verification.reason}` });
+        return;
+      }
+    }
+  } catch (err) {
+    console.error('[upload] Verification failed, proceeding anyway:', err);
+  }
 
   // Index file in background (non-blocking)
   indexSubjectFile(subjectId, filePath, docType).catch(err =>
