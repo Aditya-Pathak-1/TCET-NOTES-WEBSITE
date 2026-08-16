@@ -32,13 +32,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           flex flex-col transform transition-transform duration-200 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {/* Branding */}
-        <div className="h-14 flex items-center px-5 shrink-0 border-b border-white/10">
-          <div className="flex items-center gap-2.5 font-bold text-lg tracking-tight">
-            <span className="text-2xl">🎓</span>
-            <span className="text-gradient font-black tracking-tighter">TCET AI</span>
-          </div>
-        </div>
+
 
         {/* Nav links */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
