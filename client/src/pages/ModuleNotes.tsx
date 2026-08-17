@@ -37,23 +37,43 @@ export default function ModuleNotes() {
       .catch(e => setError(e.message));
   }, [subjectId]);
 
-  // 1b. Load cached notes from localStorage
+  // 1b. Load cached notes from server or fallback to localStorage
   useEffect(() => {
     if (!subjectId) return;
-    const cacheKey = `notes_${subjectId}_${moduleNumber}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (parsed.plan) setPlan(parsed.plan);
-        if (parsed.completedLectures?.length > 0) {
-          setCompletedLectures(parsed.completedLectures);
-          setGenerationDone(true);
+    
+    // First try to load from the server (persistent)
+    fetch(`/api/v1/ai/subjects/${subjectId}/modules/${moduleNumber}/data`)
+      .then(res => res.json())
+      .then(json => {
+        const data = json?.data;
+        if (data && (data.plan || data.markdown)) {
+          if (data.plan) setPlan(data.plan);
+          if (data.markdown) {
+            // Reconstruct the full markdown text as a single completed "lecture" 
+            // so it can be rendered seamlessly.
+            setCompletedLectures([data.markdown]);
+            setGenerationDone(true);
+          }
+          return;
         }
-      } catch (e) {
-        console.error('Failed to parse cached notes', e);
-      }
-    }
+        
+        // Fallback to localStorage if server doesn't have it
+        const cacheKey = `notes_${subjectId}_${moduleNumber}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed.plan) setPlan(parsed.plan);
+            if (parsed.completedLectures?.length > 0) {
+              setCompletedLectures(parsed.completedLectures);
+              setGenerationDone(true);
+            }
+          } catch (e) {
+            console.error('Failed to parse cached notes', e);
+          }
+        }
+      })
+      .catch(e => console.error("Failed to fetch module data", e));
   }, [subjectId, moduleNumber]);
 
   // 1c. Save to localStorage when notes generate

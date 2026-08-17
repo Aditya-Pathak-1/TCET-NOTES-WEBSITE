@@ -35,6 +35,7 @@ function MermaidDiagram({ code }: { code: string }) {
             fontFamily: 'Inter, system-ui, sans-serif',
           },
           securityLevel: 'loose',
+          suppressErrorRendering: true, // Prevents the giant bomb SVG from rendering during streaming
         });
         const id = `mermaid-${Math.random().toString(36).slice(2)}`;
         const { svg } = await mermaid.render(id, code);
@@ -43,7 +44,14 @@ function MermaidDiagram({ code }: { code: string }) {
         }
       } catch (err) {
         if (!cancelled && ref.current) {
-          ref.current.innerHTML = `<pre class="text-red-500 text-xs p-2">Diagram error: ${err}</pre>`;
+          // Instead of a scary error, show a loading/partial state since it often fails mid-stream
+          ref.current.innerHTML = `
+            <div class="flex flex-col items-center justify-center p-6 text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+              <svg class="w-6 h-6 animate-spin mb-3 text-indigo-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <span class="text-sm font-medium">Generating diagram...</span>
+              <pre class="text-[10px] text-slate-400 mt-3 whitespace-pre-wrap max-w-full overflow-hidden truncate px-4"><code>${code.slice(0, 100)}${code.length > 100 ? '...' : ''}</code></pre>
+            </div>
+          `;
         }
       }
     })();
@@ -53,7 +61,7 @@ function MermaidDiagram({ code }: { code: string }) {
   return (
     <div
       ref={ref}
-      className="my-4 flex justify-center overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-4"
+      className="my-4 flex justify-center overflow-x-auto"
     />
   );
 }

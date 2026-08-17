@@ -203,18 +203,18 @@ ABSOLUTE RULES:
 4. If a topic is applicable but not fully covered in the reference book, you may use your academic knowledge to fill gaps.
 5. Write at university level. Notes should be detailed enough for exam preparation.
 6. Provide an extremely detailed, comprehensive theoretical explanation for each topic. Expand deeply on all theories, operations, and background concepts to ensure the content is very rich and thorough (aim for 1500-2000 words total). The theory section must be extensive. IMPORTANT: Do NOT artificially repeat headings, lecture numbers, or content to increase length; instead, provide more depth, real-world examples, and technical details.
-7. If a process or algorithm can be visualized, generate a flowchart ONLY using a Mermaid.js code block (e.g., \`\`\`mermaid flowchart TD ... \`\`\`). Do NOT generate any other types of diagrams, and do NOT use ASCII art.
+7. If a process or algorithm can be visualized, generate a flowchart ONLY using a Mermaid.js code block. CRITICAL MERMAID RULES: You MUST enclose all node labels containing spaces or special characters in double quotes (e.g., \`A["Start Node (init)"]\`). Do NOT generate any other types of diagrams, and ABSOLUTELY DO NOT use ASCII art for anything (no ascii diagrams, no ascii tables).
 8. Do NOT use LaTeX-style math notation (like $0$). Write out all math, numbers, and formulas in plain English text.
-9. Use proper tables with headers for comparisons.`;
+9. Use strict Markdown tables for comparisons and truth tables. Never draw a table using plain text or ascii art.`;
 
   const structure = isMath ? `
 RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 
 ---
 
-## lecture no := {N}
+## Lecture {Insert Lecture Number Here}: {Insert Lecture Title Here}
 
-**Module:** {moduleNumber} | **Subject:** {subjectName} | **Est. Duration:** {hours} hour(s)
+**Module:** {Insert Module Number} | **Subject:** {Insert Subject Name} | **Est. Duration:** {Insert Hours} hour(s)
 
 ### Introduction
 [Brief introduction to the lecture]
@@ -231,7 +231,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 ### Concept Explanation
 [Detailed concept explanation]
 
-*(If the topic involves a Truth Table or Characteristic Table, add a section starting with "### Truth Table / Characteristic Table" and provide the table here. Otherwise, omit this section completely.)*
+*(CRITICAL: If and ONLY if the topic inherently requires a Truth Table or Characteristic Table, output a section "### Truth Table / Characteristic Table" containing a strict Markdown table. If the topic does NOT require it, you MUST completely skip and omit the heading. Do NOT output "Not applicable" or "No tables required"—just skip the section entirely.)*
 
 ### Example / Solved Problem
 [Examples and solved problems]
@@ -276,9 +276,9 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 
 ---
 
-## Lecture no:- {N}
+## Lecture {Insert Lecture Number Here}: {Insert Lecture Title Here}
 
-**Module:** {moduleNumber} | **Subject:** {subjectName} | **Est. Duration:** {hours} hour(s)
+**Module:** {Insert Module Number} | **Subject:** {Insert Subject Name} | **Est. Duration:** {Insert Hours} hour(s)
 
 ---
 
@@ -295,7 +295,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 ### Working / Operation
 [Detailed step-by-step working or operation]
 
-*(If the topic involves a Truth Table or Excitation Table, add a section starting with "### Truth Table / Excitation Table" and provide the table here. Otherwise, omit this section completely.)*
+*(CRITICAL: If and ONLY if the topic inherently requires a Truth Table or Excitation Table, output a section "### Truth Table / Excitation Table" containing a strict Markdown table. If the topic does NOT require it, you MUST completely skip and omit the heading. Do NOT output "Not applicable" or "No tables required"—just skip the section entirely.)*
 
 ### Advantages
 - [Advantage 1]
@@ -447,9 +447,10 @@ async function* generateWithGemini(system: string, user: string, retries = 3): A
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       const isFetchError = msg.includes('fetch failed') || msg.includes('ECONNRESET') || msg.includes('timeout');
-      if (isFetchError && attempt < retries) {
-        console.warn(`[llmService] Gemini fetch failed (attempt ${attempt}/${retries}), retrying in 2s...`);
-        await new Promise(r => setTimeout(r, 2000 * attempt));
+      const isRateLimit = msg.includes('429') || (err as any)?.status === 429 || (err as any)?.status === 502 || (err as any)?.status === 503;
+      if ((isFetchError || isRateLimit) && attempt < retries) {
+        console.warn(`[llmService] Gemini fetch/rate limit failed (attempt ${attempt}/${retries}), retrying in 5s...`);
+        await new Promise(r => setTimeout(r, 5000 * attempt));
         continue;
       }
       throw err;
@@ -490,11 +491,12 @@ async function* generateWithGroq(system: string, user: string): AsyncGenerator<s
         const text = chunk.choices[0]?.delta?.content;
         if (text) yield text;
       }
+      }
       return; // Success, exit retry loop
     } catch (err: any) {
-      if (err?.status === 429 && attempt < maxRetries) {
-        console.warn(`[Groq] Rate limit hit (attempt ${attempt}/${maxRetries}). Retrying in 5s...`);
-        await new Promise(r => setTimeout(r, 5000));
+      if ((err?.status === 429 || err?.status === 502 || err?.status === 503) && attempt < maxRetries) {
+        console.warn(`[Groq] Rate limit/Gateway hit (attempt ${attempt}/${maxRetries}). Retrying in 10s...`);
+        await new Promise(r => setTimeout(r, 10000));
         continue;
       }
       throw err;
@@ -555,11 +557,12 @@ async function* generateWithOpenRouter(system: string, user: string): AsyncGener
         const text = chunk.choices[0]?.delta?.content;
         if (text) yield text;
       }
+      }
       return; // Success, exit retry loop
     } catch (err: any) {
-      if (err?.status === 429 && attempt < maxRetries) {
-        console.warn(`[OpenRouter] Rate limit hit (attempt ${attempt}/${maxRetries}). Retrying in 5s...`);
-        await new Promise(r => setTimeout(r, 5000));
+      if ((err?.status === 429 || err?.status === 502 || err?.status === 503) && attempt < maxRetries) {
+        console.warn(`[OpenRouter] Rate limit/Gateway hit (attempt ${attempt}/${maxRetries}). Retrying in 10s...`);
+        await new Promise(r => setTimeout(r, 10000));
         continue;
       }
       throw err;

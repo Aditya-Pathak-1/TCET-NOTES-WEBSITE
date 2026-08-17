@@ -62,8 +62,8 @@ STRICT RULES:
 4. Slide count: Generate as many slides as needed to cover the content well (typically 12-20).
    Do NOT artificially limit or pad. Quality over quantity.
 
-5. Visual balance: At least 40% of slides must be DIAGRAM_EXPLANATION.
-   Use diagrams for: architectures, workflows, classifications, comparisons, timelines.
+5. Visual balance: At least 70% of slides MUST be DIAGRAM_EXPLANATION.
+   You MUST generate Mermaid flowcharts to visually explain the concepts. Use flowcharts for architectures, workflows, comparisons, and process steps. Always try to find a reason to use a flowchart.
 
 6. Output ONLY a valid JSON array. No markdown, no explanation, just JSON.
 Example:

@@ -49,15 +49,30 @@ function getMarkdownPath(subjectId: string, moduleNumber: number): string {
   return path.join(MARKDOWN_DIR, subjectId, `module_${moduleNumber}.md`);
 }
 
+function getPlanPath(subjectId: string, moduleNumber: number): string {
+  return path.join(MARKDOWN_DIR, subjectId, `plan_${moduleNumber}.json`);
+}
+
 function saveMarkdownToDisk(subjectId: string, moduleNumber: number, content: string): void {
   const dir = path.join(MARKDOWN_DIR, subjectId);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(getMarkdownPath(subjectId, moduleNumber), content, 'utf-8');
 }
 
+function savePlanToDisk(subjectId: string, moduleNumber: number, plan: any): void {
+  const dir = path.join(MARKDOWN_DIR, subjectId);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(getPlanPath(subjectId, moduleNumber), JSON.stringify(plan, null, 2), 'utf-8');
+}
+
 function loadMarkdownFromDisk(subjectId: string, moduleNumber: number): string | null {
   const p = getMarkdownPath(subjectId, moduleNumber);
   return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : null;
+}
+
+function loadPlanFromDisk(subjectId: string, moduleNumber: number): any | null {
+  const p = getPlanPath(subjectId, moduleNumber);
+  return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf-8')) : null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -226,6 +241,7 @@ export const planModuleNotes = asyncHandler(async (req: Request, res: Response) 
   }
 
   const plan = await planModule(subject.name, moduleNumber, syllabusChunks);
+  savePlanToDisk(subjectId, moduleNumber, plan);
   res.json({ data: plan });
 });
 
@@ -273,6 +289,11 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
   const send = (data: object) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
+
+  // Keep connection alive to prevent Render 502 timeout
+  const keepAlive = setInterval(() => {
+    res.write(': keepalive\n\n');
+  }, 15000);
 
   try {
     let fullMarkdown = `# Module ${moduleNumber} — ${plan.moduleTitle}\n\n`;
@@ -344,7 +365,26 @@ export const generateModuleNotes = asyncHandler(async (req: Request, res: Respon
     console.error('[aiController] Generation error:', message);
     send({ type: 'error', message });
     res.end();
+  } finally {
+    clearInterval(keepAlive);
   }
+});
+
+// ── GET /ai/subjects/:subjectId/modules/:moduleNum/data ────────────────────────
+
+export const getModuleData = asyncHandler(async (req: Request, res: Response) => {
+  const { subjectId, moduleNum } = req.params;
+  const moduleNumber = parseInt(moduleNum, 10);
+
+  const plan = loadPlanFromDisk(subjectId, moduleNumber);
+  const markdown = loadMarkdownFromDisk(subjectId, moduleNumber);
+
+  if (!plan && !markdown) {
+    res.json({ data: null });
+    return;
+  }
+
+  res.json({ data: { plan, markdown } });
 });
 
 // ── GET /ai/subjects/:subjectId/modules/:moduleNum/docx ────────────────────────

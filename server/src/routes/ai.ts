@@ -40,6 +40,9 @@ router.post('/subjects/:subjectId/modules/:moduleNum/generate', aiCtrl.generateM
 // Download generated DOCX
 router.get('/subjects/:subjectId/modules/:moduleNum/docx', aiCtrl.downloadModuleDocx);
 
+// Get saved module data (plan + markdown)
+router.get('/subjects/:subjectId/modules/:moduleNum/data', aiCtrl.getModuleData);
+
 // Generate DOCX on-demand from saved markdown (works even if SSE docx step failed)
 router.post('/subjects/:subjectId/modules/:moduleNum/docx', aiCtrl.regenerateModuleDocx);
 
