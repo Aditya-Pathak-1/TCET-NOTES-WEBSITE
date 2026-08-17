@@ -237,7 +237,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 ### Concept Explanation
 [Detailed concept explanation]
 
-*(CRITICAL: If and ONLY if the topic inherently requires a Truth Table or Characteristic Table, output a section "### Truth Table / Characteristic Table" containing a strict Markdown table. If the topic does NOT require it, you MUST completely skip and omit the heading. Do NOT output "Not applicable" or "No tables required"—just skip the section entirely.)*
+*(CRITICAL: If and ONLY if the topic is about Digital Electronics/Logic AND inherently requires a boolean Truth Table or Characteristic Table (using 0s and 1s), output a section "### Truth Table / Characteristic Table" containing a strict Markdown table. For all other topics (like Big Data, Networking, etc.), or if it's just a general comparison table, you MUST completely skip and omit this heading. NEVER put general comparison tables under this heading.)*
 
 ### Example / Solved Problem
 [Examples and solved problems]
@@ -301,7 +301,7 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 ### Working / Operation
 [Detailed step-by-step working or operation]
 
-*(CRITICAL: If and ONLY if the topic inherently requires a Truth Table or Excitation Table, output a section "### Truth Table / Excitation Table" containing a strict Markdown table. If the topic does NOT require it, you MUST completely skip and omit the heading. Do NOT output "Not applicable" or "No tables required"—just skip the section entirely.)*
+*(CRITICAL: If and ONLY if the topic is about Digital Electronics/Logic AND inherently requires a boolean Truth Table or Excitation Table (using 0s and 1s), output a section "### Truth Table / Excitation Table" containing a strict Markdown table. For all other topics, or if it's just a general comparison table, you MUST completely skip and omit this heading. NEVER put general comparison tables under this heading.)*
 
 ### Advantages
 - [Advantage 1]
