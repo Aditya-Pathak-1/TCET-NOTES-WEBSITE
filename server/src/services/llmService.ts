@@ -503,7 +503,6 @@ async function* generateWithGroq(system: string, user: string): AsyncGenerator<s
         const text = chunk.choices[0]?.delta?.content;
         if (text) yield text;
       }
-      }
       return; // Success, exit retry loop
     } catch (err: any) {
       if ((err?.status === 429 || err?.status === 502 || err?.status === 503) && attempt < maxRetries) {
@@ -568,7 +567,6 @@ async function* generateWithOpenRouter(system: string, user: string): AsyncGener
       for await (const chunk of stream) {
         const text = chunk.choices[0]?.delta?.content;
         if (text) yield text;
-      }
       }
       return; // Success, exit retry loop
     } catch (err: any) {
