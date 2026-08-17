@@ -160,13 +160,14 @@ export async function verifyDocumentRelevance(
   const prompt = `You are an AI assistant that verifies document uploads for an educational platform.
 The user is trying to upload a "${docType}" (either a syllabus or a reference book) for the subject "${subjectName}".
 
-Here is the beginning of the extracted text from the uploaded document:
+Here is a snippet of the extracted text from the uploaded document:
 ---
-${text.slice(0, 4000)}
+${text.slice(0, 15000)}
 ---
 
-Task: Determine if this document appears to be a valid syllabus, university curriculum, lecture notes, textbook, or reference material for the subject "${subjectName}". 
-Reject personal documents, certificates, bills, medical records, or completely unrelated materials.
+Task: Determine if this document appears to be a valid syllabus, university curriculum, lecture notes, textbook, or reference material. 
+IMPORTANT: Many universities bundle all subjects for a semester into a single PDF. If this document looks like a legitimate university syllabus, curriculum, or textbook, APPROVE IT (isValid: true), even if the specific subject "${subjectName}" is not mentioned in this snippet.
+Reject ONLY personal documents, certificates, bills, medical records, or completely unrelated spam materials.
 
 Return ONLY a valid JSON object in this exact format (no markdown fences, no extra text):
 {
@@ -174,7 +175,7 @@ Return ONLY a valid JSON object in this exact format (no markdown fences, no ext
   "reason": "Short explanation of why it is valid or invalid"
 }`;
 
-  const raw = (await generateContent("You are a strict document verification system.", prompt)).trim();
+  const raw = (await generateContent("You are a strict but reasonable document verification system.", prompt)).trim();
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
   try {
