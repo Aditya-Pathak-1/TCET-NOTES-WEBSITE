@@ -212,6 +212,13 @@ export const planModuleNotes = asyncHandler(async (req: Request, res: Response) 
   const syllabusChunks = await readFilesAsContext(subjectId, 'syllabus');
 
   if (syllabusChunks.length === 0) {
+    const uploadedFiles = getUploadedFiles(subjectId);
+    if (uploadedFiles.syllabus.length > 0) {
+      res.status(422).json({
+        error: 'The uploaded syllabus could not be read. If it is a scanned image, please upload a text-selectable PDF or Word document.',
+      });
+      return;
+    }
     res.status(422).json({
       error: 'No syllabus uploaded for this subject. Please upload the syllabus PDF first.',
     });
