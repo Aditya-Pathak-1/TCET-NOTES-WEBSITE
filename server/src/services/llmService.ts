@@ -191,7 +191,13 @@ Return ONLY a valid JSON object in this exact format (no markdown fences, no ext
 
 // ── Lecture Generation ────────────────────────────────────────────────────────
 
-function buildLectureSystemPrompt(subjectName: string): string {
+function buildLectureSystemPrompt(
+  subjectName: string,
+  moduleNumber: number,
+  lectureNumber: number,
+  lectureTitle: string,
+  estimatedHours: number
+): string {
   const isMath = subjectName.toLowerCase().includes('math');
 
   const baseRules = `You are an experienced university professor writing an official module handbook for engineering students.
@@ -212,9 +218,9 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 
 ---
 
-## Lecture {Insert Lecture Number Here}: {Insert Lecture Title Here}
+## Lecture ${lectureNumber}: ${lectureTitle}
 
-**Module:** {Insert Module Number} | **Subject:** {Insert Subject Name} | **Est. Duration:** {Insert Hours} hour(s)
+**Module:** ${moduleNumber} | **Subject:** ${subjectName} | **Est. Duration:** ${estimatedHours} hour(s)
 
 ### Introduction
 [Brief introduction to the lecture]
@@ -276,9 +282,9 @@ RETURN THE LECTURE IN THIS EXACT STRUCTURE (do not deviate):
 
 ---
 
-## Lecture {Insert Lecture Number Here}: {Insert Lecture Title Here}
+## Lecture ${lectureNumber}: ${lectureTitle}
 
-**Module:** {Insert Module Number} | **Subject:** {Insert Subject Name} | **Est. Duration:** {Insert Hours} hour(s)
+**Module:** ${moduleNumber} | **Subject:** ${subjectName} | **Est. Duration:** ${estimatedHours} hour(s)
 
 ---
 
@@ -392,7 +398,13 @@ export async function* generateLecture(
   referenceContext: ContextChunk[]
 ): AsyncGenerator<string> {
   const provider = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
-  const systemPrompt = buildLectureSystemPrompt(subjectName);
+  const systemPrompt = buildLectureSystemPrompt(
+    subjectName,
+    moduleNumber,
+    lecture.lectureNumber,
+    lecture.title,
+    lecture.estimatedHours
+  );
   const userPrompt = buildLectureUserPrompt(
     subjectName, moduleNumber, moduleTitle, lecture, syllabusContext, referenceContext
   );
