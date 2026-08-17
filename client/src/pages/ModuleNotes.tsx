@@ -37,6 +37,34 @@ export default function ModuleNotes() {
       .catch(e => setError(e.message));
   }, [subjectId]);
 
+  // 1b. Load cached notes from localStorage
+  useEffect(() => {
+    if (!subjectId) return;
+    const cacheKey = `notes_${subjectId}_${moduleNumber}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed.plan) setPlan(parsed.plan);
+        if (parsed.completedLectures?.length > 0) {
+          setCompletedLectures(parsed.completedLectures);
+          setGenerationDone(true);
+        }
+      } catch (e) {
+        console.error('Failed to parse cached notes', e);
+      }
+    }
+  }, [subjectId, moduleNumber]);
+
+  // 1c. Save to localStorage when notes generate
+  useEffect(() => {
+    if (!subjectId) return;
+    if (plan || completedLectures.length > 0) {
+      const cacheKey = `notes_${subjectId}_${moduleNumber}`;
+      localStorage.setItem(cacheKey, JSON.stringify({ plan, completedLectures }));
+    }
+  }, [plan, completedLectures, subjectId, moduleNumber]);
+
   // 2. Auto-scroll during generation
   useEffect(() => {
     if (generating && scrollRef.current) {
